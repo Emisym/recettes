@@ -96,6 +96,23 @@ dialog::backdrop{background:rgba(40,25,15,.35)}
 .dlg{padding:18px 20px}.dlg h3{margin:0 0 4px;font:700 19px Lato,system-ui,sans-serif}
 .dlg-im{aspect-ratio:2/1;border-radius:12px;background:var(--acs) center/cover;display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;color:var(--mu);font-size:14px}
 .pal{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}.sw{width:26px;height:26px;padding:0;border-radius:50%;border:2px solid var(--card);box-shadow:0 0 0 1px var(--bd);font-size:13px;line-height:1;color:var(--mu)}.sw.on{box-shadow:0 0 0 2px var(--tx)}.sw.none{background:var(--card)}
+/* Glaces */
+.gl-form{display:grid;grid-template-columns:2fr 1.4fr 1fr;gap:4px 14px;align-items:end;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:6px 14px;margin:10px 0;box-shadow:var(--sh)}
+.gl-form #gty button{flex:1}
+.gl-adv{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:10px 14px;margin:10px 0}.gl-adv summary{cursor:pointer;font-weight:700}
+.gl-pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:0 12px}
+.gl-card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px 16px;margin:14px 0;box-shadow:var(--sh)}
+.gl-card h3{font:700 19px Lato,system-ui,sans-serif;margin:2px 0 10px}.gl-card h4{margin:12px 0 4px;font-size:16px}.gl-card ul{margin:0;padding-left:20px}
+.gl-card table{width:100%;border-collapse:collapse}.gl-card td,.gl-card th{padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}
+.gl-card .n{text-align:right;white-space:nowrap}.gl-card tfoot td{font-weight:700;border-bottom:0}
+.gl-ing td:first-child{width:100%}.gl-ing b{font-size:17px}
+.gl-scroll{overflow-x:auto}.gl-at{font-size:14px;min-width:620px}.gl-at th{color:var(--mu);font-weight:700;text-align:right}.gl-at th:first-child{text-align:left}
+.gl-chk td:first-child{width:28px}.gl-chk .gl-v{white-space:normal;max-width:45%}
+.gl-steps li{margin:8px 0;line-height:1.55}
+.gl-warn{background:#fff6e0;border:1px solid #f1d58a;border-radius:10px;padding:8px 12px;margin:8px 0}
+.gl-err{background:#fdecea;border:1px solid #f3b8b0;border-radius:10px;padding:10px 12px;color:#a5281b}
+@media (max-width:700px){.gl-form{grid-template-columns:1fr}}
+@media print{header,.row,.gl-adv,.gl-form,#st{display:none!important}.gl-card{box-shadow:none;break-inside:avoid}body{background:#fff}}
 </style>
 </head>
 <body>
@@ -103,6 +120,7 @@ dialog::backdrop{background:rgba(40,25,15,.35)}
 <header><h1>🍲 Mes recettes</h1><span class="st" id="st"></span></header>
 <div id="app"></div>
 </main>
+<script src="glaces.js"></script>
 <script>
 const $=s=>document.querySelector(s), app=$('#app');
 let catsMeta=[],recipes=[], view={m:'list'}, filt={q:'',cat:''}, store=null, assets=null;
@@ -145,14 +163,14 @@ async function init(){
   if(!store) store=localStore();
   $('h1').onclick=()=>{filt={q:'',cat:''};view={m:'list'};render()};
   $('#st').textContent=store.sync?'':'⚠️ serveur injoignable : données locales uniquement';
-  store.watch(a=>{recipes=a;if(view.m==='list'&&$('#q'))refresh();else if(view.m!=='edit'&&view.m!=='prices')render(true)});
+  store.watch(a=>{recipes=a;if(view.m==='list'&&$('#q'))refresh();else if(view.m!=='edit'&&view.m!=='prices'&&view.m!=='glaces')render(true)});
 }
 
 // ---- Rendu ----
 function render(keep){
   const y=window.scrollY;stopCar();
   document.querySelector('main').classList.toggle('mid',view.m!=='list');
-  if(view.m==='list')list();else if(view.m==='show')show();else if(view.m==='prices')pricesView();else edit();
+  if(view.m==='list')list();else if(view.m==='show')show();else if(view.m==='prices')pricesView();else if(view.m==='glaces')glacesView();else edit();
   window.scrollTo(0,keep?y:0);
 }
 const catsOf=r=>Array.isArray(r.cats)?r.cats:(r.cat?[r.cat]:[]);
@@ -219,10 +237,11 @@ const norm=s=>String(s??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(
 let homeHtml='';
 function list(){
   homeHtml='';
-  app.innerHTML=`<div class="bar"><input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" placeholder="🔍 Recette, ingrédient, tag…" value="${esc(filt.q)}"><div class="acts"><button class="p" id="new">+ Nouvelle recette</button><button id="px">🧺 Ingrédients & prix</button><button id="imp">📄 Importer</button></div><input type="file" id="impf" accept="application/pdf,.pdf" hidden><span class="st" id="imps"></span></div><div id="home"></div><dialog id="cdlg"></dialog>`;
+  app.innerHTML=`<div class="bar"><input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" placeholder="🔍 Recette, ingrédient, tag…" value="${esc(filt.q)}"><div class="acts"><button class="p" id="new">+ Nouvelle recette</button><button id="px">🧺 Ingrédients & prix</button><button id="gl">🍨 Glaces</button><button id="imp">📄 Importer</button></div><input type="file" id="impf" accept="application/pdf,.pdf" hidden><span class="st" id="imps"></span></div><div id="home"></div><dialog id="cdlg"></dialog>`;
   $('#q').oninput=e=>{filt.q=e.target.value;refresh()};
   $('#new').onclick=()=>{view={m:'edit',r:{id:uid(),title:'',cats:filt.cat&&filt.cat!==ALLC&&filt.cat!==NOC?[filt.cat]:[],tags:[],prep:'',cook:'',serv:4,ings:[{q:'',u:'',name:''}],steps:'',img:'',saison:'intemporel',carousel:true}};render()};
   $('#px').onclick=()=>{view={m:'prices'};render()};
+  $('#gl').onclick=()=>{view={m:'glaces'};render()};
   $('#imp').onclick=()=>{$('#impf').value='';$('#impf').click()};
   $('#impf').onchange=e=>{const f=e.target.files[0];if(f)importPdf(f)};
   const home=$('#home');
