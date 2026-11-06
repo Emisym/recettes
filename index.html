@@ -97,8 +97,15 @@ dialog::backdrop{background:rgba(40,25,15,.35)}
 .dlg-im{aspect-ratio:2/1;border-radius:12px;background:var(--acs) center/cover;display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;color:var(--mu);font-size:14px}
 .pal{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}.sw{width:26px;height:26px;padding:0;border-radius:50%;border:2px solid var(--card);box-shadow:0 0 0 1px var(--bd);font-size:13px;line-height:1;color:var(--mu)}.sw.on{box-shadow:0 0 0 2px var(--tx)}.sw.none{background:var(--card)}
 /* Glaces */
-.gl-form{display:grid;grid-template-columns:2fr 1.4fr 1fr;gap:4px 14px;align-items:end;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:6px 14px;margin:10px 0;box-shadow:var(--sh)}
-.gl-form #gty button{flex:1}
+.gl-form{display:grid;grid-template-columns:2fr 1fr;gap:4px 14px;align-items:end;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:6px 14px;margin:10px 0;box-shadow:var(--sh)}
+#get button{flex:1}
+.gl-acts{margin:14px 0 -4px}.gl-acts .chip{cursor:default}
+.gl-eh{display:grid;grid-template-columns:2fr 80px 1.4fr;gap:0 12px;align-items:end}
+.gl-erow{border-bottom:1px solid var(--bd);padding:8px 0}.gl-erow:last-child{border-bottom:0;margin-bottom:8px}
+.gl-eline{display:grid;grid-template-columns:1fr 110px auto 36px;gap:8px;align-items:center}.gl-eline button{padding:6px 0}
+.gl-sub{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin:8px 0 0}.gl-mini{display:flex;flex-direction:column;font-size:13px;color:var(--mu);width:110px}.gl-mini.gl-wide{width:200px}.gl-mini input{padding:6px 9px}
+.gl-verdict{border-radius:10px;padding:10px 14px;margin:0 0 10px}.gl-verdict ul{margin:6px 0 0}.gl-verdict li{margin:4px 0}
+.gl-verdict.ok{background:#eaf6ec;border:1px solid #b9dfc0}.gl-verdict.ko{background:#fff6e0;border:1px solid #f1d58a}
 .gl-adv{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:10px 14px;margin:10px 0}.gl-adv summary{cursor:pointer;font-weight:700}
 .gl-pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:0 12px}
 .gl-card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px 16px;margin:14px 0;box-shadow:var(--sh)}
@@ -111,7 +118,7 @@ dialog::backdrop{background:rgba(40,25,15,.35)}
 .gl-steps li{margin:8px 0;line-height:1.55}
 .gl-warn{background:#fff6e0;border:1px solid #f1d58a;border-radius:10px;padding:8px 12px;margin:8px 0}
 .gl-err{background:#fdecea;border:1px solid #f3b8b0;border-radius:10px;padding:10px 12px;color:#a5281b}
-@media (max-width:700px){.gl-form{grid-template-columns:1fr}}
+@media (max-width:700px){.gl-form,.gl-eh{grid-template-columns:1fr}.gl-eline{grid-template-columns:1fr 80px auto 32px;gap:6px}}
 @media print{header,.row,.gl-adv,.gl-form,#st{display:none!important}.gl-card{box-shadow:none;break-inside:avoid}body{background:#fff}}
 </style>
 </head>
@@ -225,28 +232,30 @@ function startCar(){
 const catMeta=n=>catsMeta.find(c=>norm(c.name)===norm(n));
 const ALLC='__all',NOC='__none';
 function catTiles(){
-  if(!recipes.length)return'<p class="mu" style="margin-top:28px">Aucune recette. Ajoutez la première !</p>';
+  // Boîte « Glaces » : ouvre le calculateur de glaces et sorbets
+  const glTile=`<div class="ct noimg" data-gla="1" tabindex="0" role="button"><div class="ct-emo">🍨</div><div class="ct-ov"><b>Glaces</b><span>Crèmes glacées & sorbets</span></div></div>`;
+  if(!recipes.length)return`<p class="mu" style="margin-top:28px">Aucune recette. Ajoutez la première !</p><section><div class="cgrid">${glTile}</div></section>`;
   const can=!!(store&&store.saveCat&&assets),sorted=[...recipes].sort(byTitle);
   const tile=(key,label,n,img,emo,edit)=>`<div class="ct${img?'':' noimg'}" data-cat="${esc(key)}" tabindex="0" role="button">${img?`<div class="ct-im" style="background-image:url('${esc(img)}')"></div>`:`<div class="ct-emo">${emo}</div>`}<div class="ct-ov"><b>${esc(label)}</b><span>${n} recette${n>1?'s':''}</span></div>${edit?`<button class="ct-ed" data-ec="${esc(key)}" title="Modifier la catégorie" aria-label="Modifier « ${esc(label)} »">✏️</button>`:''}</div>`;
   const cs=cats().map(c=>{const inC=sorted.filter(r=>catsOf(r).includes(c)),m=catMeta(c);
     return tile(c,c,inC.length,imgUrl(m&&m.img)||imgUrl((inC.find(r=>imgUrl(r.img))||{}).img),'🍽️',can)});
   const none=recipes.filter(r=>!catsOf(r).length).length;
-  return `<section><div class="sec-h"><h2>Catégories</h2></div><div class="cgrid">${cs.join('')}${tile(ALLC,'Toutes les recettes',recipes.length,'','📚',false)}${none?tile(NOC,'Sans catégorie',none,'','🗂️',false):''}</div></section>`;
+  return `<section><div class="sec-h"><h2>Catégories</h2></div><div class="cgrid">${cs.join('')}${tile(ALLC,'Toutes les recettes',recipes.length,'','📚',false)}${none?tile(NOC,'Sans catégorie',none,'','🗂️',false):''}${glTile}</div></section>`;
 }
 const norm=s=>String(s??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/œ/g,'oe').replace(/æ/g,'ae');
 let homeHtml='';
 function list(){
   homeHtml='';
-  app.innerHTML=`<div class="bar"><input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" placeholder="🔍 Recette, ingrédient, tag…" value="${esc(filt.q)}"><div class="acts"><button class="p" id="new">+ Nouvelle recette</button><button id="px">🧺 Ingrédients & prix</button><button id="gl">🍨 Glaces</button><button id="imp">📄 Importer</button></div><input type="file" id="impf" accept="application/pdf,.pdf" hidden><span class="st" id="imps"></span></div><div id="home"></div><dialog id="cdlg"></dialog>`;
+  app.innerHTML=`<div class="bar"><input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" placeholder="🔍 Recette, ingrédient, tag…" value="${esc(filt.q)}"><div class="acts"><button class="p" id="new">+ Nouvelle recette</button><button id="px">🧺 Ingrédients & prix</button><button id="imp">📄 Importer</button></div><input type="file" id="impf" accept="application/pdf,.pdf" hidden><span class="st" id="imps"></span></div><div id="home"></div><dialog id="cdlg"></dialog>`;
   $('#q').oninput=e=>{filt.q=e.target.value;refresh()};
   $('#new').onclick=()=>{view={m:'edit',r:{id:uid(),title:'',cats:filt.cat&&filt.cat!==ALLC&&filt.cat!==NOC?[filt.cat]:[],tags:[],prep:'',cook:'',serv:4,ings:[{q:'',u:'',name:''}],steps:'',img:'',saison:'intemporel',carousel:true}};render()};
   $('#px').onclick=()=>{view={m:'prices'};render()};
-  $('#gl').onclick=()=>{view={m:'glaces'};render()};
   $('#imp').onclick=()=>{$('#impf').value='';$('#impf').click()};
   $('#impf').onchange=e=>{const f=e.target.files[0];if(f)importPdf(f)};
   const home=$('#home');
   const act=e=>{
     const ec=e.target.closest('[data-ec]');if(ec){openCat(ec.dataset.ec);return true}
+    if(e.target.closest('[data-gla]')){view={m:'glaces'};render();return true}
     if(e.target.closest('#bc')){filt.cat='';refresh();window.scrollTo(0,0);return true}
     const c=e.target.closest('[data-cat]');if(c){filt.cat=c.dataset.cat;refresh();window.scrollTo(0,0);return true}
     const r=e.target.closest('[data-id]');if(r){view={m:'show',id:r.dataset.id,serv:null};render();return true}};
@@ -271,7 +280,7 @@ function refresh(){
       const hay=nn([r.title,catsOf(r).join(' '),(r.tags||[]).join(' '),(r.ings||[]).filter(i=>!i.t).map(ingName).join(' ')].join(' '));
       return toks.every(t=>hay.includes(t))}).sort(byTitle);
     const title=filt.cat===ALLC?'Toutes les recettes':filt.cat===NOC?'Sans catégorie':filt.cat||'Résultats de la recherche';
-    html=`<div class="sec-h">${filt.cat?'<button id="bc">← Catégories</button>':''}<h2>${esc(title)}</h2><span class="st">${rs.length} recette${rs.length>1?'s':''}${filt.cat&&toks.length?' correspondant à la recherche':''}</span></div>`+
+    html=`<div class="sec-h">${filt.cat?'<button id="bc">← Accueil</button>':''}<h2>${esc(title)}</h2><span class="st">${rs.length} recette${rs.length>1?'s':''}${filt.cat&&toks.length?' correspondant à la recherche':''}</span></div>`+
       (rs.length?`<div class="grid">${rs.map(r=>{const u=imgUrl(r.img),t=num(r.prep)+num(r.cook);return`<div class="rc" data-id="${esc(r.id)}" tabindex="0" role="button"><div class="im" style="${u?`background-image:url('${esc(u)}')`:''}">${u?'':'🍽️'}</div><div class="t"><b>${esc(r.title)}</b><span class="mu">${esc(catsOf(r).join(', '))}${t?` · ${t} min`:''}</span>${hint(r,toks)}</div></div>`}).join('')}</div>`:'<p class="mu">Aucune recette ne correspond.</p>');
   }
   if(html===homeHtml)return;   // rien n'a changé : on ne touche pas au carrousel en cours

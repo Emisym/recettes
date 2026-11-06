@@ -1,8 +1,8 @@
 <?php
-// API "Recettes" pour XAMPP (PHP 7.4+). Recettes : data/recipes.json — Prix : data/prices.json — Catégories : data/cats.json — Photos : uploads/
+// API "Recettes" pour XAMPP (PHP 7.4+). Recettes : data/recipes.json — Prix : data/prices.json — Catégories : data/cats.json — Glaces perso : data/glaces.json — Photos : uploads/
 header('Cache-Control: no-store');
 $dataDir = __DIR__ . '/data'; $upDir = __DIR__ . '/uploads';
-$col = (isset($_GET['col']) && in_array($_GET['col'], ['prices', 'cats'], true)) ? $_GET['col'] : 'recipes';
+$col = (isset($_GET['col']) && in_array($_GET['col'], ['prices', 'cats', 'glaces'], true)) ? $_GET['col'] : 'recipes';
 $dbFile = $dataDir . '/' . $col . '.json';   // recipes.json, prices.json ou cats.json
 const IMG_RE = '/^[a-f0-9]{24}\.(jpg|png|webp)$/D';
 const MAX_UPLOAD = 8 * 1024 * 1024;           // 8 Mo

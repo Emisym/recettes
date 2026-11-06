@@ -20,8 +20,16 @@ const GL_ING={
   jaunes:{n:"Jaunes d'œufs",mg:33.5,es:50,jau:100},
   stab:{n:'Stabilisant/émulsifiant',es:100,stab:100},
   cafe:{n:'Café soluble',es:97},
-  cacao:{n:'Cacao en poudre 22 % MG',mg:22,es:99,cac:78}
+  cacao:{n:'Cacao en poudre 22 % MG',mg:22,es:99,cac:78},
+  ecreme:{n:'Lait écrémé',mg:0.06,esdl:9.28,es:9.34},
+  creme30:{n:'Crème 30 % MG',mg:30,esdl:6.44,es:36.44},
+  creme40:{n:'Crème 40 % MG',mg:40,esdl:5.52,es:45.52},
+  poudre26:{n:'Lait en poudre 26 % MG',mg:26,esdl:71,es:97},
+  pamande:{n:"Pâte d'amande pure (non sucrée)",mg:54,es:94},
+  pnoisette:{n:'Pâte de noisette pure (non sucrée)',mg:60,es:93},
+  vanille:{n:'Vanille (gousse, ~4 g)',es:0}
 };
+const GL_BUT=['lait','ecreme','creme','creme30','creme40','beurre','poudre26'];   // sources de MG butyrique (laitière)
 const GL_PS_LACTOSE=16, GL_LACTOSE_ESDL=0.5;        // l'ESDL contient ± 50 % de lactose, pouvoir sucrant 16
 const GL_PS_FRUIT=1.3, GL_SUCRE_FRUIT=0.8;           // sucres des fruits (fructose + glucose) ≈ 80 % de leur extrait sec
 const GL_K=0.088;                                     // facteur constant de la formule N°1
@@ -100,7 +108,10 @@ function glTotals(lines,P){
 const glFruitName=f=>{const jus=f.f.startsWith('jus'),n=f.n.toLowerCase();return(jus?'Jus ':'Purée ')+(/^[aeiouyhéèê]/.test(n)?"d'":'de ')+n+(jus&&f.f!=='jus'?' ('+f.f+')':'')};
 function glFruitLine(fk,w,esOv){
   const f=GL_FRUITS[fk],es=esOv||f.es;
-  return glLine('fruit',w,{n:glFruitName(f),es,fr:100,psx:es*GL_SUCRE_FRUIT*GL_PS_FRUIT});
+  const l=glLine('fruit',w,{n:glFruitName(f),es,fr:100,psx:es*GL_SUCRE_FRUIT*GL_PS_FRUIT});l.fk=fk;return l;
+}
+function glCouvLine(w,pate,cmg){
+  const l=glLine('couv',w,{n:`Chocolat de couverture ${glP(pate)} %`,mg:cmg,su:100-pate,ps:100,cac:pate-cmg,es:100});l.pate=pate;l.cmg=cmg;return l;
 }
 
 // ---- Crème glacée : méthode Arbuckle (formules N°1 et N°2), ch. IX à XI ----
@@ -172,7 +183,7 @@ function glCalcCI(P,p){
   if(grasW)lines.push(glLine(gras,grasW));
   if(laitW)lines.push(glLine('lait',laitW,{note:`≈ ${fmt(Math.round(laitW/1.036)/1000)} L`}));
   if(eauW)lines.push(glLine('eau',eauW));
-  if(couvW)lines.push(glLine('couv',couvW,{n:`Chocolat de couverture ${glP(p.coPate)} %`,mg:p.coMg,su:100-p.coPate,ps:100,cac:p.coPate-p.coMg,es:100}));
+  if(couvW)lines.push(glCouvLine(couvW,p.coPate,p.coMg));
   if(cacW)lines.push(glLine('cacao',cacW));
   if(cafeW)lines.push(glLine('cafe',cafeW));
   if(fruitW)lines.push(glFruitLine(p.fruit,fruitW,p.es));
@@ -196,123 +207,327 @@ function glCalcSO(P,p){
 }
 
 // ---- Contrôles : cibles du livre et législation française ----
+// Chaque contrôle : ok = true (respecté), false (à revoir, avec un conseil), null (simple information)
 function glChecks(type,p,r,tot){
-  const pc=tot.pc,out=[],chk=(lbl,val,ok,ref)=>out.push({lbl,val,ok,ref});
-  const fr=p.fruit?GL_FRUITS[p.fruit]:null;
-  if(type==='ci'){
+  const pc=tot.pc,out=[],chk=(lbl,val,ok,ref,hint)=>out.push({lbl,val,ok,ref,hint:ok===false?hint:''});
+  const rng=(lbl,v,lo,hi,ref,low,high,unit)=>chk(lbl,glP(v)+(unit===undefined?' %':unit),v>=lo&&v<=hi,ref,v<lo?low:high);
+  const mgBut=r.lines.filter(l=>GL_BUT.includes(l.k)).reduce((a,l)=>a+l.mg,0)/r.P*100;
+  const fl=r.lines.filter(l=>l.k==='fruit'),acide=fl.some(l=>GL_FRUITS[l.fk].t==='acide');
+  const choco=pc.cac>0.5,estMax=choco?42:40;
+  const H={
+    estLo:"Trop d'eau : la glace sera dure, avec des cristaux de glace. Ajoutez des sucres, du lait en poudre ou de la matière grasse, ou réduisez le lait / l'eau.",
+    estHi:'Trop de matières sèches : glace lourde, pâteuse ou sableuse, qui foisonne mal. Réduisez sucres ou poudre de lait, ou ajoutez du liquide.',
+    tsLo:'Pas assez sucrée : la glace sera dure à la sortie du congélateur. Ajoutez du saccharose (ou un peu de dextrose).',
+    tsHi:'Trop sucrée : la glace ramollira en vitrine. Remplacez une partie du saccharose par du glucose atomisé (pouvoir sucrant 47), ou réduisez les sucres.'};
+  if(!p.custom&&type==='ci'){
     chk('MG totale',glP(pc.mg)+' %',Math.abs(pc.mg-p.mg)<0.15,'visé '+glP(p.mg)+' %');
     chk('ESDL',glP(pc.esdl)+' %',Math.abs(pc.esdl-p.esdl)<0.15,'visé '+glP(p.esdl)+' %');
-    const mgBut=r.lines.filter(l=>['lait','creme','beurre'].includes(l.k)).reduce((a,l)=>a+l.mg,0)/r.P*100;
+  }
+  if(type==='ci'){
+    if(p.custom){
+      rng('MG totale',pc.mg,5,12,'5 à 12 % (9 % est un bon choix)','Peu de matière grasse : glace moins onctueuse. Ajoutez de la crème ou du beurre.','Au-delà de 12 %, c’est excessif pour une glace artisanale (goût gras, dure au froid). Réduisez la crème ou le beurre.');
+      rng('ESDL (extrait sec dégraissé du lait)',pc.esdl,7.5,11.5,'7,5 à 11,5 % — plus la MG est faible, plus l’ESDL doit être élevé','ESDL trop faible : la glace manque de corps et foisonne mal. Ajoutez du lait en poudre 0 %.','ESDL trop élevé : risque de cristallisation du lactose (glace sableuse). Réduisez le lait en poudre.');
+      rng('Sucres',pc.su,14,22,'14 à 22 % selon le matériel (ch. VIII)','Pas assez de sucres : glace dure et cristallisée. Ajoutez du saccharose ou du glucose atomisé.','Trop de sucres : glace molle et collante. Réduisez les sucres.');
+    }
     chk('MG butyrique (lait, crème, beurre)',glP(mgBut)+' %',null,'');
-    chk('MG totale + ESDL',glP(pc.mg+pc.esdl),pc.mg+pc.esdl<=22,'≤ 22 conseillé (goût français)');
-    const estMax=p.coSec||p.caSec?42:40;
-    chk('Extrait sec total',glP(pc.es)+' %',pc.es>=31&&pc.es<=estMax,`31 à ${estMax} % conseillé${estMax===42?' (glace au chocolat : 42 maximum)':''}`);
-    chk('Taux sucrant',fmt(Math.round(pc.ps)),pc.ps>=15&&pc.ps<=23,'± 17 (vanille) à ± 21 (chocolat, fruits)');
-    if(p.cat==='arome')chk('Législation « crème glacée » aux arômes',`MG but. ${glP(mgBut)} % · sacch. ${glP(r.sacchTot/r.P*100)} % · EST ${glP(pc.es)} %`,mgBut>=7&&pc.es>=31&&(r.sacchTot/r.P*100>=14||pc.su>=14),'minimum 7 % MG butyrique, 14 % saccharose, 31 % EST');
-    if(p.cat==='fruit')chk('Législation « crème glacée » aux fruits',`MG but. ${glP(mgBut)} % · fruit ${glP(pc.fr)} % · EST ${glP(pc.es)} %`,mgBut>=5&&pc.es>=29&&pc.fr>=(fr&&fr.t==='acide'?10:15),'minimum 5 % MG butyrique, 14 % saccharose, 15 % de fruits doux (10 % acides), 29 % EST');
-    if(p.cat==='standard')chk('Catégorie','glace standard aux œufs',null,"la MG de la couverture n'est pas butyrique : pas d'appellation « crème glacée » (ch. XI)");
+    chk('MG totale + ESDL',glP(pc.mg+pc.esdl),pc.mg+pc.esdl<=22,'≤ 22 conseillé (goût français)','Mix trop riche pour le goût français : baissez la MG ou l’ESDL.');
+    rng('Extrait sec total',pc.es,31,estMax,`31 à ${estMax} % conseillé${choco?' (glace au chocolat : 42 maximum)':''}`,H.estLo,H.estHi);
+    chk('Taux sucrant',fmt(Math.round(pc.ps)),pc.ps>=15&&pc.ps<=23,'± 17 (vanille) à ± 21 (chocolat, fruits)',pc.ps<15?H.tsLo:H.tsHi);
+    if(p.custom){
+      if(pc.stab>1)chk('Stabilisant',glP(pc.stab)+' %',false,'1 % maximum (législation)','Trop de stabilisant : texture gommeuse. 0,3 à 0,5 % suffisent.');
+      else chk('Stabilisant',glP(pc.stab)+' %',null,pc.stab?'0,3 à 0,5 % conseillé':'sans stabilisant : à consommer rapidement (moins bonne tenue au stockage)');
+      const sac=r.sacchTot/r.P*100,fr=fl.length;
+      const okL=mgBut>=(fr?5:7)&&pc.es>=(fr?29:31)&&(sac>=14||pc.su>=14)&&(!fr||pc.fr>=(acide?10:15));
+      chk('Appellation « crème glacée »',okL?'possible':'non',okL?true:null,fr?'minimum 5 % MG butyrique, 14 % de sucres, 15 % de fruits doux (10 % acides), 29 % EST':'minimum 7 % MG butyrique, 14 % de sucres, 31 % EST');
+    }else{
+      const fr=p.fruit?GL_FRUITS[p.fruit]:null;
+      if(p.cat==='arome')chk('Législation « crème glacée » aux arômes',`MG but. ${glP(mgBut)} % · sacch. ${glP(r.sacchTot/r.P*100)} % · EST ${glP(pc.es)} %`,mgBut>=7&&pc.es>=31&&(r.sacchTot/r.P*100>=14||pc.su>=14),'minimum 7 % MG butyrique, 14 % saccharose, 31 % EST');
+      if(p.cat==='fruit')chk('Législation « crème glacée » aux fruits',`MG but. ${glP(mgBut)} % · fruit ${glP(pc.fr)} % · EST ${glP(pc.es)} %`,mgBut>=5&&pc.es>=29&&pc.fr>=(fr&&fr.t==='acide'?10:15),'minimum 5 % MG butyrique, 14 % saccharose, 15 % de fruits doux (10 % acides), 29 % EST');
+      if(p.cat==='standard')chk('Catégorie','glace standard aux œufs',null,"la MG de la couverture n'est pas butyrique : pas d'appellation « crème glacée » (ch. XI)");
+    }
   }else{
-    chk('Extrait sec total',glP(pc.es)+' %',pc.es>=29&&pc.es<=34,'29 à 34 % (sorbet au goût français)');
-    chk('Taux sucrant',fmt(Math.round(pc.ps)),pc.ps>=26&&pc.ps<=33,'≈ 30');
-    const mini=fr.t==='acide'?15:35;
-    chk(`Législation sorbet aux fruits ${fr.t}s`,`fruit ${glP(pc.fr)} % · saccharose ${glP(p.sacch)} %`,pc.fr>=mini&&(p.sacch>=18||pc.su>=18),`minimum ${mini} % de fruits ${fr.t}s et 18 % de sucres`);
+    rng('Extrait sec total',pc.es,29,34,'29 à 34 % (sorbet au goût français)',H.estLo.replace(', du lait en poudre ou de la matière grasse',' ou du fruit').replace(" le lait / l'eau","l'eau"),H.estHi.replace(' ou poudre de lait','').replace('ajoutez du liquide',"ajoutez de l'eau"));
+    chk('Taux sucrant',fmt(Math.round(pc.ps)),pc.ps>=26&&pc.ps<=33,'≈ 30',pc.ps<26?H.tsLo:H.tsHi);
+    if(p.custom){
+      rng('Sucres ajoutés',pc.su,20,30,'20 à 30 % (les essais du livre : 23 à 28 %)','Pas assez de sucres : sorbet dur et glacé. Ajoutez du saccharose ou du glucose atomisé.','Trop de sucres : sorbet mou et collant. Réduisez les sucres.');
+      if(pc.mg>1)chk('Matière grasse',glP(pc.mg)+' %',false,'un sorbet ne contient normalement ni lait ni crème','Avec des produits laitiers, choisissez plutôt le type « crème glacée ».');
+      if(pc.stab>1)chk('Stabilisant',glP(pc.stab)+' %',false,'1 % maximum (législation)','Trop de stabilisant : texture gommeuse. 0,4 % suffit.');
+      if(fl.length){const mini=acide?15:35,ok=pc.fr>=mini&&pc.su>=18;chk(`Appellation « sorbet aux fruits ${acide?'acides':'doux'} »`,`fruit ${glP(pc.fr)} %`,ok?true:null,`minimum ${mini} % de fruits et 18 % de sucres`)}
+      else chk('Fruit','aucun',null,'pas de fruit : sorbet aux vins, alcools ou arômes (25 % de saccharose minimum)');
+    }else{
+      const fr=GL_FRUITS[p.fruit],mini=fr.t==='acide'?15:35;
+      chk(`Législation sorbet aux fruits ${fr.t}s`,`fruit ${glP(pc.fr)} % · saccharose ${glP(p.sacch)} %`,pc.fr>=mini&&(p.sacch>=18||pc.su>=18),`minimum ${mini} % de fruits ${fr.t}s et 18 % de sucres`);
+    }
   }
   return out;
 }
 
 // ---- Procédé de fabrication (ch. VI, X et XIII) ----
 function glProcede(type,p,r){
-  const f=p.fruit?GL_FRUITS[p.fruit]:null,st=[],g=glG;
-  const fruitL=r.lines.find(l=>l.k==='fruit');
+  const f=p.fruit?GL_FRUITS[p.fruit]:null,st=[],g=glG,has=k=>r.lines.some(l=>l.k===k);
+  const fruitLs=r.lines.filter(l=>l.k==='fruit'),fruitL=fruitLs.find(l=>l.fk===p.fruit)||fruitLs[0];
+  const fruitTxt=fruitLs.map(l=>`${g(l.w)} g de ${l.n.toLowerCase()}`).join(' et ');
   const premix=r.stabW*10;
   let mac='';
   if(f&&f.r&&fruitL){const su=Math.min(fruitL.w/f.r,Math.max(0,r.sacchTot-premix));if(su>1)mac=`<b>La veille (fruits « du marché »)</b> : mélanger les ${g(fruitL.w)} g de fruits (${f.n.toLowerCase()} : lavés, équeutés ou dénoyautés) avec ${g(su)} g de sucre <i>pris sur le saccharose de la recette</i> (proportion fruit:sucre ${f.r}:1). Couvrir et réserver 12 à 24 h à +4 °C : le jus et le goût du fruit passent dans le sirop par osmose (Arbuckle).`}
   if(mac)st.push(mac);
   st.push('Peser rigoureusement tous les ingrédients, le stabilisant avec une précision encore plus stricte.');
   if(r.stabW)st.push(`Prémélanger intimement les ${g(r.stabW)} g de stabilisant avec ${g(premix)} g de saccharose (10 fois son poids, prélevés sur le sucre de la recette).`);
+  const sug=[has('glucose')&&'le glucose atomisé',has('inverti')&&'le sucre inverti',has('dextrose')&&'le dextrose'].filter(Boolean);
+  const autres=r.lines.filter(l=>l.k==='autre').map(l=>l.n);
   if(type==='ci'){
-    const has=k=>r.lines.some(l=>l.k===k);
-    st.push(`Verser ${has('lait')?'le lait':"l'eau"} dans le pasteurisateur (ou une casserole)${has('poudre')?' et ajouter le lait en poudre en fouettant':''}.${p.vanille?' Ajouter la vanille (gousses fendues et grattées).':''}`);
-    st.push(`À 25-30 °C : ajouter le saccharose restant${has('glucose')?', le glucose atomisé':''}${has('inverti')?', le sucre inverti':''}${has('dextrose')?', le dextrose':''}.`);
-    const fats=[has('creme')&&'la crème',has('beurre')&&'le beurre',has('couv')&&'la couverture hachée',has('cacao')&&'le cacao en poudre',has('cafe')&&'le café soluble'].filter(Boolean);
+    const liq=[has('lait')&&'le lait',has('ecreme')&&'le lait écrémé',has('eau')&&"l'eau"].filter(Boolean);
+    st.push(`Verser ${liq.join(' et ')||'les liquides'} dans le pasteurisateur (ou une casserole)${has('poudre')||has('poudre26')?' et ajouter le lait en poudre en fouettant':''}.${p.vanille?' Ajouter la vanille (gousses fendues et grattées).':''}`);
+    st.push(`À 25-30 °C : ajouter ${has('sacch')?'le saccharose restant':'les sucres'}${sug.length?', '+sug.join(', '):''}.`);
+    const fats=[(has('creme')||has('creme30')||has('creme40'))&&'la crème',has('beurre')&&'le beurre',has('couv')&&'la couverture hachée',has('cacao')&&'le cacao en poudre',has('cafe')&&'le café soluble',has('pamande')&&"la pâte d'amande",has('pnoisette')&&'la pâte de noisette',...autres].filter(Boolean);
     if(fats.length)st.push(`À 35 °C : ajouter ${fats.join(', ')}.`);
     if(has('jaunes'))st.push("À 40 °C : ajouter les jaunes d'œufs.");
     if(r.stabW)st.push('À 45-55 °C (pas plus !) : ajouter en pluie le mélange stabilisant/sucre, sous forte agitation.');
     st.push('Pasteuriser : monter à +83/85 °C, puis refroidir le plus rapidement possible à +4/+2 °C. Homogénéiser si possible (mixeur plongeur à défaut).');
     st.push('Maturer 12 heures à +2/+4 °C (pas davantage) : les protéines se réhydratent et le stabilisant fait tout son effet.');
-    if(fruitL)st.push(`Juste avant de glacer : ajouter au mix les ${g(fruitL.w)} g de ${fruitL.n.toLowerCase()}${mac?' (avec son sirop de macération)':''}, bien mixer et glacer sans attendre.`);
+    if(fruitLs.length)st.push(`Juste avant de glacer : ajouter au mix ${fruitTxt}${mac?' (avec le sirop de macération)':''}, bien mixer et glacer sans attendre.`);
     st.push('Glacer en turbine : extraction vers −6/−10 °C ; un foisonnement de 50 à 75 % est satisfaisant pour une crème glacée artisanale.');
   }else{
-    st.push("Chauffer l'eau, y ajouter le saccharose restant et le glucose atomisé"+(r.lines.some(l=>l.k==='inverti')?' et le sucre inverti':'')+'.');
+    st.push(`Chauffer l'eau, y ajouter ${has('sacch')?'le saccharose restant':'les sucres'}${sug.length?', '+sug.join(', '):''}${autres.length?', '+autres.join(', '):''}.`);
     if(r.stabW)st.push('À 45/50 °C : incorporer en pluie le mélange stabilisant/sucre, avec une bonne agitation.');
     st.push('Monter le sirop à 83 °C puis le refroidir rapidement à +4 °C.');
     st.push('Maturer 4 heures au minimum pour que le stabilisant agisse parfaitement.');
-    st.push(`Avant le glaçage : ajouter les ${g(fruitL.w)} g de ${fruitL.n.toLowerCase()}${mac?' (avec son sirop de macération)':''} en mixant bien, puis tamiser.`);
+    if(fruitLs.length)st.push(`Avant le glaçage : ajouter ${fruitTxt}${mac?' (avec le sirop de macération)':''} en mixant bien, puis tamiser.`);
     st.push('Glacer : pour un sorbet, viser un foisonnement modéré de 30 à 40 %.');
   }
   st.push('Placer les bacs couverts à −25 °C quelques heures (idéalement en cellule de surgélation rapide), puis conserver à −20/−22 °C.');
   return st;
 }
 
-// ---- Vue ----
+// ============================================================================
+// Mes recettes de glaces : composition libre, saisie en grammes
+// ============================================================================
+// Ligne enregistrée : {i:'lait'|'f:fraise'|'couv'|'autre'|…, w:grammes, (couv) pate, cmg, (autre) n, mg, esdl, su, es}
+const GL_CAT=[
+  ['Produits laitiers',['lait','ecreme','creme30','creme','creme40','beurre','poudre','poudre26']],
+  ['Sucres',['sacch','glucose','inverti','dextrose']],
+  ['Œufs et stabilisant',['jaunes','stab']],
+  ['Fruits (purée ou jus, sans sucre ajouté)',Object.keys(GL_FRUITS).map(k=>'f:'+k)],
+  ['Chocolat, fruits secs, arômes',['couv','cacao','pamande','pnoisette','cafe','vanille']],
+  ['Autres',['eau','autre']]
+];
+const glIngName=i=>i.startsWith('f:')?glFruitName(GL_FRUITS[i.slice(2)]):i==='couv'?'Chocolat de couverture':i==='autre'?'Autre ingrédient (à décrire)…':(GL_ING[i]||{}).n||i;
+function glCustomLine(l,w){
+  if(l.i.startsWith('f:'))return glFruitLine(l.i.slice(2),w);
+  if(l.i==='couv'){const pate=glN(l.pate)||66,cmg=glN(l.cmg)||40.6;return glCouvLine(w,pate,cmg)}
+  if(l.i==='autre')return glLine('autre',w,{n:String(l.n||'').trim()||'Autre ingrédient',mg:glN(l.mg),esdl:glN(l.esdl),su:glN(l.su),ps:100,es:glN(l.es)});
+  return glLine(l.i,w);
+}
+function glCalcCustom(P,rec){
+  const src=(rec.lines||[]).filter(l=>glN(l.w)>0&&(l.i.startsWith('f:')||GL_ING[l.i]||l.i==='couv'||l.i==='autre'));
+  const ref=src.reduce((a,l)=>a+glN(l.w),0);
+  if(!ref)return{err:'Ajoutez des ingrédients avec leur poids en grammes.'};
+  const k=P/ref,lines=src.map(l=>glCustomLine(l,glN(l.w)*k)),warn=[];
+  src.forEach(l=>{if(l.i==='autre'&&glN(l.es)<glN(l.mg)+glN(l.esdl)+glN(l.su)-0.01)warn.push(`« ${String(l.n||'Autre ingrédient').trim()} » : son extrait sec (${glP(glN(l.es))} %) devrait être au moins égal à MG + ESDL + sucres (${glP(glN(l.mg)+glN(l.esdl)+glN(l.su))} %).`)});
+  src.forEach(l=>{if(l.i==='couv'&&!(glN(l.pate)>glN(l.cmg)&&glN(l.pate)<=100))warn.push('Couverture : le % de pâte de cacao doit être supérieur au % de matière grasse (et au plus 100).')});
+  if(rec.type==='so'&&!lines.some(l=>l.k==='eau'||l.k==='fruit'))warn.push("Un sorbet se fait avec de l'eau et/ou du fruit : ajoutez-en.");
+  const sum=key=>lines.reduce((a,l)=>a+l[key],0),es=sum('es'),mg=sum('mg'),su=sum('su');
+  const S=[];
+  S.push(['Étape 1 — Mise à l’échelle',[Math.abs(k-1)<1e-9?`Recette saisie pour ${glG(ref)} g = poids voulu : coefficient ×1`:`Recette saisie pour ${glG(ref)} g, poids voulu ${glG(P)} g → coefficient ${glG(P)} ÷ ${glG(ref)} = <b>×${fmt(Math.round(k*10000)/10000)}</b> appliqué à chaque ingrédient`]]);
+  S.push(['Étape 2 — Extrait sec apporté par chaque ingrédient',lines.map(l=>`${esc(l.n)} : ${glG(l.w)} g × ${glP(l.w?l.es/l.w*100:0)} % = <b>${glG(l.es)} g</b>`)]);
+  S.push(['Étape 3 — Totaux',[
+    `Extrait sec total = ${lines.filter(l=>l.es>0.0001).map(l=>glG(l.es)).join(' + ')} = <b>${glG(es)} g</b>, soit ${glG(es)} ÷ ${glG(P)} × 100 = <b>${glP(es/P*100)} %</b>`,
+    mg>0.0001?`Matière grasse = ${lines.filter(l=>l.mg>0.0001).map(l=>glG(l.mg)).join(' + ')} = ${glG(mg)} g, soit <b>${glP(mg/P*100)} %</b>`:'Matière grasse : 0 g',
+    `Sucres = ${lines.filter(l=>l.su>0.0001).map(l=>glG(l.su)).join(' + ')||'0'} = ${glG(su)} g, soit <b>${glP(su/P*100)} %</b>`,
+    `Eau = ${glG(P)} − ${glG(es)} = ${glG(P-es)} g, soit ${glP((P-es)/P*100)} %`]]);
+  const fr=lines.filter(l=>l.k==='fruit').sort((a,b)=>b.w-a.w)[0];
+  const p={custom:true,fruit:fr?fr.fk:'',vanille:src.some(l=>l.i==='vanille')};
+  return{lines,steps:S,warn,P,extra:[],sacchTot:lines.filter(l=>l.k==='sacch').reduce((a,l)=>a+l.w,0),stabW:sum('stab'),p,ref};
+}
+
+// Stockage des recettes personnelles : serveur (api.php, data/glaces.json) ou navigateur en secours
+let glCustom=[],glLoaded=false;
+const GL_LK='recettes-glaces-v1',glApi=(a,id)=>'api.php?action='+a+(id?'&id='+encodeURIComponent(id):'')+'&col=glaces';
+const glLocal=()=>{try{return JSON.parse(localStorage.getItem(GL_LK)||'[]')}catch(e){return[]}};
+const glSetLocal=a=>{try{localStorage.setItem(GL_LK,JSON.stringify(a))}catch(e){}};
+async function glLoad(){
+  try{if(store&&store.sync){const r=await fetch(glApi('list'),{cache:'no-store'});if(r.ok){const a=await r.json();glCustom=Array.isArray(a)?a:[];glLoaded=true;return}}}catch(e){}
+  glCustom=glLocal();glLoaded=true;
+}
+async function glSave(rec){
+  if(store&&store.sync){const r=await fetch(glApi('save',rec.id),{method:'POST',body:JSON.stringify(rec)});if(!r.ok)throw 0}
+  else glSetLocal([...glLocal().filter(x=>x.id!==rec.id),rec]);
+  glCustom=[...glCustom.filter(x=>x.id!==rec.id),rec];
+}
+async function glDel(id){
+  if(store&&store.sync){const r=await fetch(glApi('delete',id),{method:'POST'});if(!r.ok)throw 0}
+  else glSetLocal(glLocal().filter(x=>x.id!==id));
+  glCustom=glCustom.filter(x=>x.id!==id);
+}
+
+// ============================================================================
+// Vue
+// ============================================================================
+let glState=null;   // dernier choix, conservé en revenant sur la page
+const GL_TYPE={ci:'Crème glacée',so:'Sorbet'};
+// Recette sélectionnée : « b:fraise:so » (recette du livre) ou « c:<id> » (recette perso)
+function glSel(){
+  const v=glState.rid||'';
+  if(v.startsWith('c:')){const rec=glCustom.find(x=>x.id===v.slice(2));if(rec)return{kind:'c',rec,type:rec.type==='so'?'so':'ci'}}
+  const [,id,t]=v.split(':'),r=GL_RECETTES.find(x=>x.id===id&&x[t]);
+  if(r)return{kind:'b',r,type:t};
+  return{kind:'b',r:GL_RECETTES[0],type:'ci'};
+}
+const glPar=()=>{const s=glSel();return Object.assign({},s.r[s.type],glState.ov)};
+const glTitle=(type,name,cat)=>(type==='ci'?(cat==='standard'?'Glace':'Crème glacée'):'Sorbet')+' '+name.replace(/ \(.*\)/,'').toLowerCase();
+
 function glacesView(){
-  const g=glState||(glState={rid:'vanille',type:'ci',P:1000,ov:{}});
-  app.innerHTML=`<div class="row"><button id="bk">← Retour</button><span style="flex:1"></span><button id="gpr">🖨️ Imprimer</button></div>
+  const g=glState||(glState={rid:'b:vanille:ci',P:1000,ov:{},edit:null});
+  if(g.edit)return glEditView();
+  app.innerHTML=`<div class="row"><button id="bk">← Accueil</button><span style="flex:1"></span><button class="p" id="gnew">+ Nouvelle recette de glace</button><button id="gpr">🖨️ Imprimer</button></div>
   <h2 style="font-family:Lato,system-ui,sans-serif;margin:12px 0 4px">🍨 Glaces</h2>
-  <p class="mu st">Choisissez une recette, le type et le poids de mix voulu : la recette est équilibrée selon <i>La technologie des glaces</i> (B. Davenat) — table analytique et formules d'Arbuckle.</p>
+  <p class="mu st">Choisissez une recette et le poids de mix voulu : la recette est équilibrée selon <i>La technologie des glaces</i> (B. Davenat) — table analytique et formules d'Arbuckle. Avec « Nouvelle recette », composez la vôtre et vérifiez qu'elle est cohérente.</p>
   <div class="gl-form">
-    <div class="f"><label for="grc">Recette</label><select id="grc">${GL_RECETTES.map(r=>`<option value="${r.id}"${r.id===g.rid?' selected':''}>${r.e} ${esc(r.n)}${r.ci&&r.so?'':r.ci?' — crème glacée':' — sorbet'}</option>`).join('')}</select></div>
-    <div class="f"><label>Type</label><div class="row" id="gty"></div></div>
+    <div class="f"><label for="grc">Recette</label><select id="grc"></select></div>
     <div class="f"><label for="gp">Poids total du mix (g)</label><input id="gp" type="number" inputmode="decimal" min="100" step="50" value="${esc(g.P)}"></div>
   </div>
   <details class="gl-adv" id="gadv"${g.open?' open':''}><summary>⚙️ Réglages avancés du mix (en % du poids total)</summary><div id="gpar"></div></details>
   <div id="gres"></div>`;
   $('#bk').onclick=()=>{view={m:'list'};render()};
   $('#gpr').onclick=()=>window.print();
-  $('#grc').onchange=e=>{g.rid=e.target.value;g.ov={};const r=glRec();if(!r[g.type])g.type=r.ci?'ci':'so';glForm();glRes()};
+  $('#gnew').onclick=()=>glOpenEditor({id:uid(),n:'',e:'🍨',type:'ci',lines:[{i:'lait',w:''},{i:'creme',w:''},{i:'poudre',w:''},{i:'sacch',w:''},{i:'glucose',w:''},{i:'stab',w:''}]},true);
+  $('#grc').onchange=e=>{g.rid=e.target.value;g.ov={};glForm();glRes()};
   $('#gp').oninput=e=>{g.P=e.target.value;glRes()};
   $('#gadv').ontoggle=e=>{g.open=e.target.open};
-  glForm();glRes();
+  glFillSelect();glForm();glRes();
+  if(!glLoaded)glLoad().then(()=>{if(view.m==='glaces'&&!glState.edit&&$('#grc')){glFillSelect();glForm();glRes()}});
 }
-let glState=null;   // dernier choix, conservé en revenant sur la page
-const glRec=()=>GL_RECETTES.find(r=>r.id===glState.rid)||GL_RECETTES[0];
-const glPar=()=>{const g=glState,r=glRec();return Object.assign({},r[g.type],g.ov)};
+function glFillSelect(){
+  const g=glState,opt=(v,l)=>`<option value="${esc(v)}"${v===g.rid?' selected':''}>${l}</option>`;
+  const mine=[...glCustom].sort((a,b)=>String(a.n).localeCompare(String(b.n)));
+  if(g.rid.startsWith('c:')&&!glCustom.some(x=>'c:'+x.id===g.rid)&&glLoaded)g.rid='b:vanille:ci';
+  $('#grc').innerHTML=
+    (mine.length?`<optgroup label="⭐ Mes recettes">${mine.map(x=>opt('c:'+x.id,`${esc(x.e||'🍨')} ${esc(x.n)} — ${GL_TYPE[x.type==='so'?'so':'ci'].toLowerCase()}`)).join('')}</optgroup>`:'')+
+    ['ci','so'].map(t=>`<optgroup label="${t==='ci'?'🍦 Crèmes glacées':'🍧 Sorbets'}">${GL_RECETTES.filter(r=>r[t]).map(r=>opt(`b:${r.id}:${t}`,`${r.e} ${esc(r.n)}`)).join('')}</optgroup>`).join('');
+  if(g.rid.startsWith('c:')&&!glLoaded)$('#grc').insertAdjacentHTML('afterbegin',`<option value="${esc(g.rid)}" selected>Chargement…</option>`);
+}
 function glForm(){
-  const g=glState,r=glRec(),p=glPar();
-  $('#gty').innerHTML=[['ci','🍦 Crème glacée'],['so','🍧 Sorbet']].map(([k,l])=>`<button data-gt="${k}" class="${g.type===k?'p':''}"${r[k]?'':' disabled title="Pas de version '+(k==='ci'?'crème glacée':'sorbet')+' pour cette recette"'}>${l}</button>`).join('');
-  $('#gty').querySelectorAll('[data-gt]').forEach(b=>b.onclick=()=>{if(g.type===b.dataset.gt)return;g.type=b.dataset.gt;g.ov={};glForm();glRes()});
-  const keys=GL_PARAMS[g.type].filter(([k])=>k in p&&(k!=='fpct'||p.fruit)&&(!/^co/.test(k)||p.coSec)&&(k!=='caSec'||p.caSec)&&(k!=='cafe'||p.cafe));
-  const bases=g.type==='ci'?`<div class="f"><label for="gbase">Base laitière</label><select id="gbase">${[['creme','Lait entier + crème 35 %'],['beurre','Lait entier + beurre'],['eau','Lait en poudre + eau + beurre']].map(([k,l])=>`<option value="${k}"${p.base===k?' selected':''}>${l}</option>`).join('')}</select></div>`:'';
-  $('#gpar').innerHTML=`<div class="gl-pgrid">${keys.map(([k,l,mi,ma,s])=>`<div class="f"><label for="gk_${k}">${esc(l)}${/^coP|^coM/.test(k)?'':' (%)'}</label><input id="gk_${k}" data-gk="${k}" type="number" inputmode="decimal" min="${mi}" max="${ma}" step="${s}" value="${p[k]}"></div>`).join('')}${bases}</div>
+  const s=glSel(),adv=$('#gadv');
+  adv.hidden=s.kind==='c';if(s.kind==='c')return;
+  const g=glState,type=s.type,p=glPar();
+  const keys=GL_PARAMS[type].filter(([k])=>k in p&&(k!=='fpct'||p.fruit)&&(!/^co/.test(k)||p.coSec)&&(k!=='caSec'||p.caSec)&&(k!=='cafe'||p.cafe));
+  const bases=type==='ci'?`<div class="f"><label for="gbase">Base laitière</label><select id="gbase">${[['creme','Lait entier + crème 35 %'],['beurre','Lait entier + beurre'],['eau','Lait en poudre + eau + beurre']].map(([k,l])=>`<option value="${k}"${p.base===k?' selected':''}>${l}</option>`).join('')}</select></div>`:'';
+  $('#gpar').innerHTML=`<div class="gl-pgrid">${keys.map(([k,l,mi,ma,st])=>`<div class="f"><label for="gk_${k}">${esc(l)}${/^coP|^coM/.test(k)?'':' (%)'}</label><input id="gk_${k}" data-gk="${k}" type="number" inputmode="decimal" min="${mi}" max="${ma}" step="${st}" value="${p[k]}"></div>`).join('')}${bases}</div>
   <div class="row"><button id="grs">Valeurs de la recette</button><span class="st">${p.src==='L'?'📖 Formule reprise du livre':'📐 Formule établie avec les règles du livre'} — ${esc(p.ref||'')}</span></div>`;
   $('#gpar').querySelectorAll('[data-gk]').forEach(i=>i.oninput=()=>{g.ov[i.dataset.gk]=glN(i.value);glRes()});
   const gb=$('#gbase');if(gb)gb.onchange=()=>{g.ov.base=gb.value;glRes()};
   $('#grs').onclick=()=>{g.ov={};glForm();glRes()};
 }
 function glRes(){
-  const g=glState,r=glRec(),p=glPar(),P=glN(g.P),box=$('#gres');
+  const g=glState,s=glSel(),P=glN(g.P),box=$('#gres');
+  if(g.rid.startsWith('c:')&&!glLoaded){box.innerHTML='<p class="mu">Chargement de vos recettes…</p>';return}
   if(!(P>=100&&P<=200000)){box.innerHTML='<p class="mu">Indiquez un poids total entre 100 g et 200 kg.</p>';return}
-  if(g.type==='ci'&&p.coSec>0&&!(p.coPate>p.coMg)){box.innerHTML='<p class="gl-err">Le % de pâte de cacao de la couverture doit être supérieur à son % de matière grasse.</p>';return}
-  const res=g.type==='ci'?glCalcCI(P,p):glCalcSO(P,p);
-  if(res.err){box.innerHTML=`<p class="gl-err">⚠️ ${esc(res.err)}</p>`;return}
-  const tot=glTotals(res.lines,P),f=p.fruit?GL_FRUITS[p.fruit]:null;
+  let res,p,title,emo,head='';
+  if(s.kind==='c'){
+    res=glCalcCustom(P,s.rec);p=res.p;title=glTitle(s.type,s.rec.n||'sans nom')+' — '+glG(P)+' g de mix';emo=s.rec.e||'🍨';
+    head=`<div class="row gl-acts"><span class="chip">⭐ Ma recette · ${GL_TYPE[s.type]}</span><span style="flex:1"></span><button id="ged">✏️ Modifier</button><button id="gdup">📋 Dupliquer</button><button class="d" id="gdel">Supprimer</button></div>`;
+  }else{
+    p=glPar();
+    if(s.type==='ci'&&p.coSec>0&&!(p.coPate>p.coMg)){box.innerHTML='<p class="gl-err">Le % de pâte de cacao de la couverture doit être supérieur à son % de matière grasse.</p>';return}
+    res=s.type==='ci'?glCalcCI(P,p):glCalcSO(P,p);title=glTitle(s.type,s.r.n,p.cat)+' — '+glG(P)+' g de mix';emo=s.r.e;
+    head=`<div class="row gl-acts"><span class="chip">${GL_TYPE[s.type]}</span><span style="flex:1"></span><button id="gcp">📋 Copier dans mes recettes pour la modifier</button></div>`;
+  }
+  if(res.err){box.innerHTML=head+`<p class="gl-err">⚠️ ${esc(res.err)}</p>`;glResActs(s,res);return}
+  box.innerHTML=head+glRender(s.type,p,res,title,emo,true);
+  glResActs(s,res);
+}
+function glResActs(s,res){
+  const g=glState,b=id=>document.getElementById(id);
+  if(b('ged'))b('ged').onclick=()=>glOpenEditor(JSON.parse(JSON.stringify(s.rec)),false);
+  if(b('gdup'))b('gdup').onclick=()=>glOpenEditor(Object.assign(JSON.parse(JSON.stringify(s.rec)),{id:uid(),n:s.rec.n+' (copie)'}),true);
+  if(b('gdel'))b('gdel').onclick=()=>{b('gdel').outerHTML='<span class="row"><b style="color:#c0392b">Supprimer cette recette ?</b><button class="d" id="gdy">Oui</button><button id="gdn">Non</button></span>';
+    b('gdy').onclick=async()=>{try{await glDel(s.rec.id)}catch(e){b('gdy').closest('.row').innerHTML='<b style="color:#c0392b">⚠️ Échec de la suppression</b>';return}g.rid='b:vanille:ci';glacesView()};
+    b('gdn').onclick=()=>glRes()};
+  if(b('gcp')&&res.lines)b('gcp').onclick=()=>{
+    const r1=x=>Math.round(x*10)/10;
+    const lines=res.lines.map(l=>l.k==='fruit'?{i:'f:'+l.fk,w:r1(l.w)}:l.k==='couv'?{i:'couv',w:r1(l.w),pate:l.pate,cmg:l.cmg}:{i:l.k,w:r1(l.w)});
+    if(s.r[s.type].vanille)lines.push({i:'vanille',w:r1(res.P/1000*s.r[s.type].vanille)});
+    glOpenEditor({id:uid(),n:s.r.n.replace(/ \(.*\)/,'')+' (ma version)',e:s.r.e,type:s.type,lines},true)};
+}
+// Rendu commun : recette pesée, contrôles, calcul, table analytique, fabrication
+function glRender(type,p,res,title,emo,full){
+  const P=res.P,tot=glTotals(res.lines,P),f=p.fruit?GL_FRUITS[p.fruit]:null,checks=glChecks(type,p,res,tot);
   const cols=[['mg','MG'],['esdl','ESDL'],['su','Sucres'],['jau','Jaunes'],['fr','Fruits'],['cac','Cacao sec'],['stab','Stab.'],['es','EST']].filter(([k])=>tot.t[k]>0.0001);
-  const ingRows=[...res.lines].sort((a,b)=>b.w-a.w);
-  box.innerHTML=`
-  <section class="gl-card"><h3>${r.e} ${g.type==='ci'?(p.cat==='standard'?'Glace':'Crème glacée'):'Sorbet'} ${esc(r.n.replace(/ \(.*\)/,'').toLowerCase())} — ${glG(P)} g de mix</h3>
+  const ingRows=[...res.lines].sort((a,b)=>b.w-a.w),bad=checks.filter(c=>c.ok===false);
+  const verdict=p.custom?(bad.length?`<div class="gl-verdict ko"><b>⚠️ ${bad.length} point${bad.length>1?'s':''} à revoir</b><ul>${bad.map(c=>`<li><b>${esc(c.lbl)}</b> : ${esc(c.hint||c.ref)}</li>`).join('')}</ul></div>`:'<div class="gl-verdict ok"><b>✅ Recette cohérente</b> — tous les critères d’équilibre du livre sont respectés.</div>'):'';
+  return `
+  ${full?`<section class="gl-card"><h3>${emo} ${esc(title)}</h3>
     <table class="gl-ing"><tbody>${ingRows.map(l=>`<tr><td>${esc(l.n)}${l.note?`<div class="st">${esc(l.note)}</div>`:''}</td><td class="n"><b>${glG(l.w)} g</b></td><td class="n mu">${glP(l.w/P*100)} %</td></tr>`).join('')}
     ${res.extra.map(x=>`<tr><td>${esc(x.n)}<div class="st">${esc(x.note)}</div></td><td class="n"><b>${glG(x.w)} g</b></td><td></td></tr>`).join('')}</tbody>
     <tfoot><tr><td>Total</td><td class="n"><b>${glG(tot.t.w)} g</b></td><td class="n mu">100 %</td></tr></tfoot></table>
-    ${res.warn.map(w=>`<p class="gl-warn">⚠️ ${esc(w)}</p>`).join('')}
     ${f?`<p class="st">🍓 ${esc(f.n)} : ${esc(f.f)}, ≈ ${p.es||f.es} % d'extrait sec (fruit ${f.t}). ${esc(f.note)}</p>`:''}
-  </section>
-  <section class="gl-card"><h3>✅ Caractéristiques obtenues</h3><table class="gl-chk"><tbody>${glChecks(g.type,p,res,tot).map(c=>`<tr><td>${c.ok===null?'ℹ️':c.ok?'✅':'⚠️'}</td><td>${esc(c.lbl)}${c.ref?`<div class="st">${esc(c.ref)}</div>`:''}</td><td class="n gl-v"><b>${esc(c.val)}</b></td></tr>`).join('')}</tbody></table>
+  </section>`:''}
+  ${res.warn.map(w=>`<p class="gl-warn">⚠️ ${esc(w)}</p>`).join('')}
+  <section class="gl-card"><h3>${p.custom?'🔎 Cohérence de la recette':'✅ Caractéristiques obtenues'}</h3>${verdict}<table class="gl-chk"><tbody>${checks.map(c=>`<tr><td>${c.ok===null?'ℹ️':c.ok?'✅':'⚠️'}</td><td>${esc(c.lbl)}${c.ref?`<div class="st">${esc(c.ref)}</div>`:''}</td><td class="n gl-v"><b>${esc(c.val)}</b></td></tr>`).join('')}</tbody></table>
     <p class="st">Taux sucrant estimé : Σ (poids de chaque sucre × pouvoir sucrant) — saccharose 100, sucre inverti 127, dextrose 74, glucose atomisé 47, lactose 16 (50 % de l'ESDL), sucres des fruits ≈ 80 % de leur extrait sec × 130.</p></section>
   <section class="gl-card"><h3>🧮 Détail du calcul</h3>${res.steps.map(([t,ls])=>`<h4>${esc(t)}</h4><ul>${ls.map(x=>`<li>${x}</li>`).join('')}</ul>`).join('')}</section>
   <section class="gl-card"><h3>📊 Table analytique (en g)</h3><div class="gl-scroll"><table class="gl-at"><thead><tr><th>Ingrédient</th><th>Poids</th>${cols.map(c=>`<th>${c[1]}</th>`).join('')}</tr></thead>
     <tbody>${res.lines.map(l=>`<tr><td>${esc(l.n)}</td><td class="n">${glG(l.w)}</td>${cols.map(([k])=>`<td class="n">${l[k]>0.0001?glG(l[k]):''}</td>`).join('')}</tr>`).join('')}</tbody>
     <tfoot><tr><td>Totaux</td><td class="n">${glG(tot.t.w)}</td>${cols.map(([k])=>`<td class="n">${glG(tot.t[k])}</td>`).join('')}</tr>
     <tr><td>Pourcentages</td><td></td>${cols.map(([k])=>`<td class="n"><b>${glP(tot.pc[k])}</b></td>`).join('')}</tr></tfoot></table></div>
-    <p class="st">EST = extrait sec total · ESDL = extrait sec dégraissé du lait · MG = matière grasse totale (lait, crème, beurre, jaunes à 33,5 %, cacao).</p></section>
-  <section class="gl-card"><h3>👩‍🍳 Fabrication</h3><ol class="gl-steps">${glProcede(g.type,p,res).map(s=>`<li>${s}</li>`).join('')}</ol></section>`;
+    <p class="st">EST = extrait sec total · ESDL = extrait sec dégraissé du lait · MG = matière grasse totale (lait, crème, beurre, jaunes à 33,5 %, cacao, fruits secs).</p></section>
+  ${full?`<section class="gl-card"><h3>👩‍🍳 Fabrication</h3><ol class="gl-steps">${glProcede(type,p,res).map(s=>`<li>${s}</li>`).join('')}</ol></section>`:''}`;
+}
+
+// ---- Éditeur de recette personnelle ----
+function glOpenEditor(rec,isNew){glState.edit=rec;glState.editNew=isNew;window.scrollTo(0,0);glEditView()}
+function glEditView(){
+  const g=glState,r=g.edit;
+  app.innerHTML=`<div class="row"><button id="gx">← Annuler</button></div>
+  <h2 style="font-family:Lato,system-ui,sans-serif;margin:12px 0 4px">${g.editNew?'Nouvelle recette de glace':'Modifier la recette'}</h2>
+  <p class="mu st">Indiquez le parfum et les quantités de chaque ingrédient (sucres, matières grasses, lait, fruits…) en grammes, pour n'importe quel poids : l'extrait sec, la matière grasse, l'ESDL, les sucres et le taux sucrant sont calculés en direct pour vérifier que la recette est cohérente. Elle sera ensuite recalculée pour le poids de mix que vous voudrez.</p>
+  <section class="gl-card">
+    <div class="gl-eh"><div class="f"><label for="gen">Parfum / nom de la recette</label><input id="gen" value="${esc(r.n)}" placeholder="ex. Pistache, Caramel beurre salé…"></div>
+    <div class="f"><label for="gee">Emoji</label><input id="gee" value="${esc(r.e||'')}" maxlength="4"></div>
+    <div class="f"><label>Type</label><div class="row" id="get">${['ci','so'].map(t=>`<button data-t="${t}" class="${r.type===t?'p':''}">${t==='ci'?'🍦 Crème glacée':'🍧 Sorbet'}</button>`).join('')}</div></div></div>
+  </section>
+  <section class="gl-card"><h3>🧺 Ingrédients <span class="st" id="gew"></span></h3><div id="gel"></div><button id="gea">+ Ajouter un ingrédient</button></section>
+  <div id="gean"></div>
+  <div class="row" style="margin:14px 0 30px"><button class="p" id="ges">💾 Enregistrer</button><button id="gx2">Annuler</button><span class="st" id="gem"></span></div>`;
+  const back=()=>{g.edit=null;glacesView()};
+  $('#gx').onclick=back;$('#gx2').onclick=back;
+  $('#gen').oninput=e=>{r.n=e.target.value;glEdAnalyse()};
+  $('#gee').oninput=e=>{r.e=e.target.value};
+  $('#get').querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{r.type=b.dataset.t;$('#get').querySelectorAll('[data-t]').forEach(x=>x.className=x===b?'p':'');glEdAnalyse()});
+  $('#gea').onclick=()=>{r.lines.push({i:r.type==='so'?'eau':'lait',w:''});glEdRows();const q=$('#gel').querySelectorAll('[data-f=w]');q[q.length-1].focus()};
+  const gel=$('#gel');
+  gel.addEventListener('input',e=>{const t=e.target,row=t.closest('[data-ix]');if(!row||!t.dataset.f)return;r.lines[+row.dataset.ix][t.dataset.f]=t.value;glEdAnalyse()});
+  gel.addEventListener('change',e=>{const t=e.target,row=t.closest('[data-ix]');if(!row||!t.matches('select'))return;const l=r.lines[+row.dataset.ix];l.i=t.value;
+    if(l.i==='couv'){l.pate=l.pate||66;l.cmg=l.cmg||40.6}glEdRows()});
+  gel.addEventListener('click',e=>{const b=e.target.closest('[data-del]');if(!b)return;r.lines.splice(+b.closest('[data-ix]').dataset.ix,1);glEdRows()});
+  $('#ges').onclick=async()=>{
+    const m=$('#gem');r.n=String(r.n||'').trim();
+    if(!r.n){m.textContent='⚠️ Donnez un nom à la recette.';$('#gen').focus();return}
+    if(!r.lines.some(l=>glN(l.w)>0)){m.textContent='⚠️ Ajoutez au moins un ingrédient avec son poids.';return}
+    const rec={id:r.id,n:r.n,e:String(r.e||'').trim()||'🍨',type:r.type==='so'?'so':'ci',lines:r.lines.filter(l=>glN(l.w)>0).map(l=>{const o={i:l.i,w:glN(l.w)};if(l.i==='couv'){o.pate=glN(l.pate);o.cmg=glN(l.cmg)}if(l.i==='autre'){o.n=String(l.n||'').trim();['mg','esdl','su','es'].forEach(k=>o[k]=glN(l[k]))}return o})};
+    m.textContent='Enregistrement…';
+    try{await glSave(rec)}catch(e){m.textContent='⚠️ Échec de l’enregistrement (serveur injoignable ?)';return}
+    g.edit=null;g.rid='c:'+rec.id;g.ov={};glacesView();
+  };
+  glEdRows();
+}
+function glEdRows(){
+  const r=glState.edit;
+  const sel=i=>`<select data-k="i" aria-label="Ingrédient">${GL_CAT.map(([lab,ks])=>`<optgroup label="${esc(lab)}">${ks.map(k=>`<option value="${esc(k)}"${k===i?' selected':''}>${esc(glIngName(k))}</option>`).join('')}</optgroup>`).join('')}</select>`;
+  const num=(f,v,lab,ph)=>`<label class="gl-mini">${lab}<input data-f="${f}" type="number" inputmode="decimal" min="0" step="any" value="${esc(v??'')}" placeholder="${ph||''}"></label>`;
+  $('#gel').innerHTML=r.lines.length?r.lines.map((l,ix)=>`<div class="gl-erow" data-ix="${ix}">
+    <div class="gl-eline">${sel(l.i)}<input data-f="w" type="number" inputmode="decimal" min="0" step="any" value="${esc(l.w)}" placeholder="g" aria-label="Poids en grammes"><span class="mu">g</span><button data-del title="Retirer" aria-label="Retirer">✕</button></div>
+    ${l.i==='couv'?`<div class="gl-sub">${num('pate',l.pate,'% pâte de cacao')}${num('cmg',l.cmg,'% matière grasse')}<span class="st">indiqués sur l'emballage ; sucre = 100 − % pâte</span></div>`:''}
+    ${l.i==='autre'?`<div class="gl-sub"><label class="gl-mini gl-wide">Nom<input data-f="n" value="${esc(l.n||'')}" placeholder="ex. pâte de pistache"></label>${num('mg',l.mg,'% MG')}${num('esdl',l.esdl,'% ESDL')}${num('su',l.su,'% sucres')}${num('es',l.es,'% extrait sec')}<span class="st">valeurs pour 100 g (étiquette nutritionnelle) ; extrait sec = 100 − % d'eau</span></div>`:''}
+  </div>`).join(''):'<p class="mu">Aucun ingrédient.</p>';
+  glEdAnalyse();
+}
+function glEdAnalyse(){
+  const r=glState.edit,box=$('#gean');if(!box)return;
+  const ref=r.lines.reduce((a,l)=>a+glN(l.w),0);
+  $('#gew').textContent=ref?`— total ${glG(ref)} g`:'';
+  if(!ref){box.innerHTML='<p class="mu">Saisissez les poids pour voir l’analyse.</p>';return}
+  const res=glCalcCustom(ref,r);
+  if(res.err){box.innerHTML=`<p class="gl-err">⚠️ ${esc(res.err)}</p>`;return}
+  box.innerHTML=glRender(r.type==='so'?'so':'ci',res.p,res,'',r.e,false);
 }
