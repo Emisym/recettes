@@ -1,9 +1,11 @@
 <?php
 // API "Recettes" pour XAMPP (PHP 7.4+). Recettes : data/recipes.json — Prix : data/prices.json — Photos : uploads/
 header('Cache-Control: no-store');
-$dataDir = __DIR__ . '/data'; $upDir = __DIR__ . '/uploads'; $dbFile = $dataDir . '/recipes.json';
+$dataDir = __DIR__ . '/data'; $upDir = __DIR__ . '/uploads';
 $col = (isset($_GET['col']) && $_GET['col'] === 'prices') ? 'prices' : 'recipes';
 $dbFile = $dataDir . '/' . $col . '.json';   // recipes.json ou prices.json
+const IMG_RE = '/^[a-f0-9]{24}\.(jpg|png|webp)$/D';
+const MAX_UPLOAD = 8 * 1024 * 1024;           // 8 Mo
 foreach ([$dataDir, $upDir] as $d) { if (!is_dir($d)) @mkdir($d, 0775, true); }
 if (!file_exists($dataDir . '/.htaccess')) @file_put_contents($dataDir . '/.htaccess', "Require all denied\n");
 
@@ -16,18 +18,33 @@ function with_db($dbFile, $write, $fn) {
   if (!$f) out(500, ['error' => 'ecriture impossible : verifiez les droits du dossier data']);
   flock($f, $write ? LOCK_EX : LOCK_SH);
   $raw = stream_get_contents($f);
-  $db = json_decode($raw ? $raw : '[]', true);
-  if (!is_array($db)) $db = [];
+  $db = (is_string($raw) && trim($raw) !== '') ? json_decode($raw, true) : [];
+  // Fichier illisible : on n'écrase surtout pas son contenu
+  if (!is_array($db)) { flock($f, LOCK_UN); fclose($f); out(500, ['error' => 'fichier de donnees corrompu : ' . basename($dbFile)]); }
   $res = $fn($db);
-  if ($write) { ftruncate($f, 0); rewind($f); fwrite($f, json_encode($db, JSON_UNESCAPED_UNICODE)); fflush($f); }
+  if ($write) {
+    $json = json_encode(array_values($db), JSON_UNESCAPED_UNICODE);
+    if ($json === false) { flock($f, LOCK_UN); fclose($f); out(500, ['error' => 'encodage impossible']); }
+    ftruncate($f, 0); rewind($f);
+    $ok = fwrite($f, $json) === strlen($json);
+    fflush($f); flock($f, LOCK_UN); fclose($f);
+    if (!$ok) out(500, ['error' => 'ecriture incomplete']);
+    return $res;
+  }
   flock($f, LOCK_UN); fclose($f);
   return $res;
 }
+// Photo à supprimer si plus aucune entrée ne l'utilise
+function unused_img($db, $img) {
+  if (!is_string($img) || !preg_match(IMG_RE, $img)) return '';
+  foreach ($db as $x) { if (isset($x['img']) && $x['img'] === $img) return ''; }
+  return $img;
+}
 
-$action = isset($_GET['action']) ? $_GET['action'] : '';
-$id = isset($_GET['id']) ? $_GET['id'] : '';
+$action = (isset($_GET['action']) && is_string($_GET['action'])) ? $_GET['action'] : '';
+$id = (isset($_GET['id']) && is_string($_GET['id'])) ? $_GET['id'] : '';
 $post = $_SERVER['REQUEST_METHOD'] === 'POST';
-$validId = preg_match('/^[\w-]{1,64}$/', $id);
+$validId = preg_match('/^[\w-]{1,64}$/D', $id) === 1;
 
 if ($action === 'list') {
   out(200, with_db($dbFile, false, function (&$db) { return array_values($db); }));
@@ -36,10 +53,16 @@ if ($action === 'save' && $post && $validId) {
   $r = json_decode(file_get_contents('php://input'), true);
   if (!is_array($r)) out(400, ['error' => 'invalide']);
   $r['id'] = $id;
-  with_db($dbFile, true, function (&$db) use ($r, $id) {
-    foreach ($db as $i => $x) { if (isset($x['id']) && $x['id'] === $id) { $db[$i] = $r; return; } }
+  if (isset($r['img']) && !(is_string($r['img']) && ($r['img'] === '' || preg_match(IMG_RE, $r['img'])))) $r['img'] = '';
+  $old = with_db($dbFile, true, function (&$db) use ($r, $id) {
+    $prev = '';
+    foreach ($db as $i => $x) {
+      if (isset($x['id']) && $x['id'] === $id) { $prev = isset($x['img']) ? $x['img'] : ''; $db[$i] = $r; return unused_img($db, $prev); }
+    }
     $db[] = $r;
+    return '';
   });
+  if ($old !== '') @unlink($upDir . '/' . $old);
   out(200, ['ok' => 1]);
 }
 if ($action === 'delete' && $post && $validId) {
@@ -47,14 +70,15 @@ if ($action === 'delete' && $post && $validId) {
     $img = ''; $new = [];
     foreach ($db as $x) { if (isset($x['id']) && $x['id'] === $id) { $img = isset($x['img']) ? $x['img'] : ''; } else { $new[] = $x; } }
     $db = $new;
-    foreach ($new as $x) { if (isset($x['img']) && $x['img'] === $img) $img = ''; }
-    return $img;
+    return unused_img($new, $img);
   });
-  if (preg_match('/^[a-f0-9]{24}\.(jpg|png|webp)$/', $img)) @unlink($upDir . '/' . $img);
+  if ($img !== '') @unlink($upDir . '/' . $img);
   out(200, ['ok' => 1]);
 }
 if ($action === 'upload' && $post) {
-  $buf = file_get_contents('php://input');
+  if (isset($_SERVER['CONTENT_LENGTH']) && (int)$_SERVER['CONTENT_LENGTH'] > MAX_UPLOAD) out(413, ['error' => 'image trop lourde']);
+  $buf = file_get_contents('php://input', false, null, 0, MAX_UPLOAD + 1);
+  if ($buf !== false && strlen($buf) > MAX_UPLOAD) out(413, ['error' => 'image trop lourde']);
   $info = $buf ? @getimagesizefromstring($buf) : false;
   $types = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
   $mime = is_array($info) && isset($info['mime']) ? $info['mime'] : '';

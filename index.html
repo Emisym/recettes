@@ -76,7 +76,10 @@ let recipes=[], view={m:'list'}, filt={q:'',cat:'',tag:''}, store=null, assets=n
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const fmt=n=>{n=Math.round(n*100)/100;return String(n).replace('.',',')};
-const imgUrl=id=>id?'uploads/'+id:'';
+const imgUrl=id=>/^[a-f0-9]{24}\.(jpg|png|webp)$/.test(id||'')?'uploads/'+id:'';
+const num=v=>{v=+v;return isFinite(v)&&v>0?v:0};
+const byTitle=(a,b)=>String(a.title??'').localeCompare(String(b.title??''));
+const byName=(x,y)=>String(x.name??'').localeCompare(String(y.name??''));
 
 // ---- Stockage : db partagée (sync) ou localStorage en secours ----
 function localStore(){
@@ -100,20 +103,21 @@ async function init(){
       async pull(cb){try{const [a,b]=await Promise.all([fetch(api('list'),{cache:'no-store'}).then(r=>r.text()),fetch(api('list',0,'prices'),{cache:'no-store'}).then(r=>r.text())]);const t=a+'|'+b;if(t!==this.last){const d=JSON.parse(a),p=JSON.parse(b);this.last=t;prices=p.filter(x=>!x.meta);const mt=p.find(x=>x.meta);ptypes=mt&&Array.isArray(mt.types)?mt.types:DEFTYPES.slice();pcolors=mt&&mt.colors&&typeof mt.colors==='object'?mt.colors:{};(cb||this.cb)(d)}}catch(e){}},
       watch(cb){this.cb=cb;this.pull();setInterval(()=>this.pull(),10000)},
       async save(r){const x=await fetch(api('save',r.id),{method:'POST',body:JSON.stringify(r)});if(!x.ok)throw 0;await this.pull()},
-      async del(id){await fetch(api('delete',id),{method:'POST'});await this.pull()},
+      async del(id){const x=await fetch(api('delete',id),{method:'POST'});if(!x.ok)throw 0;await this.pull()},
       async savePrice(p){const x=await fetch(api('save',p.id,'prices'),{method:'POST',body:JSON.stringify(p)});if(!x.ok)throw 0},
-      async delPrice(id){await fetch(api('delete',id,'prices'),{method:'POST'})}};
+      async delPrice(id){const x=await fetch(api('delete',id,'prices'),{method:'POST'});if(!x.ok)throw 0}};
   }catch(e){}
   if(!store) store=localStore();
   $('#st').textContent=store.sync?'☁️ serveur':'⚠️ serveur injoignable : données locales uniquement';
-  store.watch(a=>{recipes=a;if(view.m==='list'&&$('#q'))refresh();else if(view.m!=='edit'&&view.m!=='prices')render()});
+  store.watch(a=>{recipes=a;if(view.m==='list'&&$('#q'))refresh();else if(view.m!=='edit'&&view.m!=='prices')render(true)});
 }
 
 // ---- Rendu ----
-function render(){
+function render(keep){
+  const y=window.scrollY;
   document.querySelector('main').classList.toggle('mid',view.m!=='list');
   if(view.m==='list')list();else if(view.m==='show')show();else if(view.m==='prices')pricesView();else edit();
-  window.scrollTo(0,0);
+  window.scrollTo(0,keep?y:0);
 }
 const catsOf=r=>Array.isArray(r.cats)?r.cats:(r.cat?[r.cat]:[]);
 const cats=()=>[...new Set(recipes.flatMap(catsOf))].sort();
@@ -134,7 +138,7 @@ function carousel(){
   const d=daily(),sea=curSeason();
   const head=`<div class="car-h"><b>✨ Idées du jour · ${saisLabel(sea)}</b>${d.length>1?'<span><button id="cl">‹</button> <button id="cr">›</button></span>':''}</div>`;
   if(!d.length)return `<section>${head}<p class="mu st">Aucune recette proposée pour cette saison. Cochez « Afficher dans le carrousel » dans l'édition d'une recette.</p></section>`;
-  return `<section>${head}<div class="car" id="ct">${d.map(r=>`<div class="rc" data-id="${r.id}"><div class="im" style="${r.img?`background-image:url(${imgUrl(r.img)})`:''}">${r.img?'':'🍽️'}</div><div class="t"><b>${esc(r.title)}</b><span class="mu">${esc(saisLabel(r.saison||'intemporel'))}${(r.prep||r.cook)?` · ${(+r.prep||0)+(+r.cook||0)} min`:''}</span></div></div>`).join('')}</div></section>`;
+  return `<section>${head}<div class="car" id="ct">${d.map(r=>`<div class="rc" data-id="${esc(r.id)}"><div class="im" style="${imgUrl(r.img)?`background-image:url('${esc(imgUrl(r.img))}')`:''}">${imgUrl(r.img)?'':'🍽️'}</div><div class="t"><b>${esc(r.title)}</b><span class="mu">${esc(saisLabel(r.saison||'intemporel'))}${(num(r.prep)||num(r.cook))?` · ${num(r.prep)+num(r.cook)} min`:''}</span></div></div>`).join('')}</div></section>`;
 }
 const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/œ/g,'oe').replace(/æ/g,'ae');
 function list(){
@@ -158,12 +162,12 @@ function refresh(){
     if(filt.cat&&!catsOf(r).includes(filt.cat))return false;
     if(filt.tag&&!(r.tags||[]).includes(filt.tag))return false;
     const hay=nn([r.title,catsOf(r).join(' '),(r.tags||[]).join(' '),(r.ings||[]).filter(i=>!i.t).map(ingName).join(' ')].join(' '));
-    return toks.every(t=>hay.includes(t))}).sort((a,b)=>a.title.localeCompare(b.title));
+    return toks.every(t=>hay.includes(t))}).sort(byTitle);
   $('#carw').innerHTML=carousel();
   $('#catw').innerHTML=cats().map(c=>`<span class="chip ${filt.cat===c?'on':''}" data-c="${esc(c)}">${esc(c)}</span>`).join('');
   $('#tagw').innerHTML=tags().length?`<div class="strip"><button class="ar" id="tl">‹</button><div class="chips" id="tgs">${tags().map(t=>`<span class="chip ${filt.tag===t?'on':''}" data-t="${esc(t)}">#${esc(t)}</span>`).join('')}</div><button class="ar" id="tr">›</button></div>`:'';
-  $('#gr').innerHTML=rs.map(r=>`<div class="rc" data-id="${r.id}"><div class="im" style="${r.img?`background-image:url(${imgUrl(r.img)})`:''}">${r.img?'':'🍽️'}</div><div class="t"><b>${esc(r.title)}</b><span class="mu">${esc(catsOf(r).join(', '))}${(r.prep||r.cook)?` · ${(+r.prep||0)+(+r.cook||0)} min`:''}</span>${hint(r,toks)}</div></div>`).join('')||(recipes.length?'<p class="mu">Aucune recette ne correspond.</p>':'<p class="mu">Aucune recette. Ajoutez la première !</p>');
-  {const ct=$('#ct');if(ct){$('#cl').onclick=()=>ct.scrollBy({left:-ct.clientWidth*.8,behavior:'smooth'});$('#cr').onclick=()=>ct.scrollBy({left:ct.clientWidth*.8,behavior:'smooth'})}}
+  $('#gr').innerHTML=rs.map(r=>`<div class="rc" data-id="${esc(r.id)}"><div class="im" style="${imgUrl(r.img)?`background-image:url('${esc(imgUrl(r.img))}')`:''}">${imgUrl(r.img)?'':'🍽️'}</div><div class="t"><b>${esc(r.title)}</b><span class="mu">${esc(catsOf(r).join(', '))}${(num(r.prep)||num(r.cook))?` · ${num(r.prep)+num(r.cook)} min`:''}</span>${hint(r,toks)}</div></div>`).join('')||(recipes.length?'<p class="mu">Aucune recette ne correspond.</p>':'<p class="mu">Aucune recette. Ajoutez la première !</p>');
+  {const ct=$('#ct');if(ct&&$('#cl')){$('#cl').onclick=()=>ct.scrollBy({left:-ct.clientWidth*.8,behavior:'smooth'});$('#cr').onclick=()=>ct.scrollBy({left:ct.clientWidth*.8,behavior:'smooth'})}}
   app.querySelectorAll('[data-c]').forEach(e=>e.onclick=()=>{filt.cat=filt.cat===e.dataset.c?'':e.dataset.c;refresh()});
   {const tg=$('#tgs');if(tg){tg.style.scrollBehavior='auto';tg.scrollLeft=ps;tg.style.scrollBehavior='';tg.addEventListener('wheel',e=>{if(Math.abs(e.deltaY)>Math.abs(e.deltaX)){e.preventDefault();tg.scrollBy({left:e.deltaY*(e.deltaMode===1?30:1),behavior:'instant'})}},{passive:false});$('#tl').onclick=()=>tg.scrollBy({left:-tg.clientWidth*.8});$('#tr').onclick=()=>tg.scrollBy({left:tg.clientWidth*.8})}}
   app.querySelectorAll('[data-t]').forEach(e=>e.onclick=()=>{filt.tag=filt.tag===e.dataset.t?'':e.dataset.t;refresh()});
@@ -250,10 +254,9 @@ function pricesView(){
   const saveFam=async p=>{try{await store.savePrice(p);say('✓ enregistré')}catch(e){say('⚠️ échec de l\'enregistrement')}};
   const saveTypes=async()=>{try{await store.savePrice({id:'meta-types',meta:true,types:ptypes,colors:pcolors});say('✓ enregistré')}catch(e){say('⚠️ échec de l\'enregistrement')}};
   const clash=(name,exceptId)=>prices.find(x=>x.id!==exceptId&&famNames(x).some(y=>nn(y)===nn(name)));
-  const famSelect=(ex,sel)=>[...prices].filter(p=>p.id!==ex).sort((a,b)=>a.name.localeCompare(b.name)).map(p=>`<option value="${esc(p.id)}" ${p.id===sel?'selected':''}>${esc(p.name)}</option>`).join('');
+  const famSelect=(ex,sel)=>[...prices].filter(p=>p.id!==ex).sort(byName).map(p=>`<option value="${esc(p.id)}" ${p.id===sel?'selected':''}>${esc(p.name)}</option>`).join('');
 
   // Boîtes (accueil), contenu d'une boîte, ou résultats de recherche depuis l'accueil
-  const byName=(x,y)=>x.name.localeCompare(y.name);
   const tcol=t=>{const c=pcolors[t];return/^#[0-9a-f]{6}$/i.test(c||'')?c:''};
   const tsty=t=>tcol(t)?`background:color-mix(in srgb,${tcol(t)} 22%,var(--card));border-color:${tcol(t)}`:'';
   const boxNames=()=>[...ptypes,...new Set(prices.map(p=>p.type).filter(t=>t&&!ptypes.includes(t)))];
@@ -325,7 +328,7 @@ function pricesView(){
       if(!p){el.remove();return}
       const used=recipes.some(r=>(r.ings||[]).some(i=>i.ref===id));
       if(used&&!confirm('Cette famille est utilisée par des recettes. La supprimer quand même ?'))return;
-      prices=prices.filter(x=>x.id!==id);try{await store.delPrice(id);say('✓ supprimé')}catch(err){}
+      try{await store.delPrice(id);prices=prices.filter(x=>x.id!==id);say('✓ supprimé')}catch(err){say('⚠️ échec de la suppression');return}
       drawList();drawMiss();return}
     if(e.target.closest('[data-mg]')&&p){
       if(el.querySelector('.mgp'))return;
@@ -335,7 +338,7 @@ function pricesView(){
       const t=prices.find(x=>x.id===el.querySelector('.mgs').value);if(!t)return;
       t.vars=[...new Set([...(t.vars||[]),p.name,...(p.vars||[])])];
       prices=prices.filter(x=>x.id!==id);
-      await saveFam(t);try{await store.delPrice(id)}catch(err){}
+      await saveFam(t);try{await store.delPrice(id)}catch(err){say('⚠️ l\'ancienne famille n\'a pas pu être supprimée')}
       // les recettes qui pointaient vers l'ancienne famille pointent vers la nouvelle
       for(const r of recipes){let ch=false;(r.ings||[]).forEach(i=>{if(i.ref===id){i.ref=t.id;ch=true}});if(ch)try{await store.save(r)}catch(err){}}
       drawList();drawMiss();say('✓ rangé dans « '+t.name+' »')}
@@ -379,10 +382,10 @@ function show(){
   app.innerHTML=`<div class="row"><button id="bk">← Retour</button><span style="flex:1"></span><button id="ed">Modifier</button><button class="d" id="dl">Supprimer</button></div>
   <h2 style="font-family:Lato,system-ui,sans-serif;margin:12px 0 4px">${esc(r.title)}</h2>
   <div>${catsOf(r).map(c=>`<span class="chip">${esc(c)}</span>`).join('')}${r.saison&&r.saison!=='intemporel'?`<span class="chip">${saisLabel(r.saison)}</span>`:''}${(r.tags||[]).map(t=>`<span class="chip">#${esc(t)}</span>`).join('')}</div>
-  ${r.img?`<img class="hero" src="${imgUrl(r.img)}" alt="">`:''}
+  ${imgUrl(r.img)?`<img class="hero" src="${esc(imgUrl(r.img))}" alt="">`:''}
   ${/^https?:\/\//.test(r.source||'')?`<p class="st">Source : <a href="${esc(r.source)}" target="_blank" rel="noopener noreferrer" style="color:var(--ac)">${esc(r.source)}</a></p>`:(r.source?`<p class="st">Source : ${esc(r.source)}</p>`:'')}
-  <p>⏱️ Préparation : <b>${r.prep||0} min</b> · 🔥 Cuisson : <b>${r.cook||0} min</b></p>
-  ${r.yq>0?`<p>🥣 Rendement : <b>${fmt(+r.yq*k)} ${esc(r.yu||'')}</b></p>`:''}
+  <p>⏱️ Préparation : <b>${num(r.prep)} min</b> · 🔥 Cuisson : <b>${num(r.cook)} min</b></p>
+  ${num(r.yq)?`<p>🥣 Rendement : <b>${fmt(num(r.yq)*k)} ${esc(r.yu||'')}</b></p>`:''}
   <div class="row"><b>Quantités pour</b><button id="mi">−</button><b>${s}</b><button id="pl">+</button><span class="mu">personnes</span>
   ${[0.5,2,3].map(m=>`<button data-m="${m}">×${m}</button>`).join('')}${s!==base?'<button id="rs">Réinitialiser</button>':''}</div>
   <h3>Ingrédients</h3><ul>${(r.ings||[]).map(i=>i.t?`<li class="ti">${esc(i.name)}</li>`:`<li><b>${i.q!==''&&i.q!=null&&!isNaN(+i.q)?fmt(+i.q*k):esc(i.q)}</b> ${esc(i.u||'')} ${i.rref!==undefined&&recipes.some(x=>x.id===i.rref)?`<a href="#" data-r="${esc(i.rref)}" style="color:var(--ac)">🥣 ${esc(ingName(i))}</a>`:esc(ingName(i))}${(lc=>lc.s==='ok'&&lc.c>0?` <span class="mu">· ${lc.miss&&lc.miss.length?'≥ ':''}${eur(lc.c)}</span>`:'')(lineCost(i,k))}</li>`).join('')}</ul>
@@ -393,7 +396,7 @@ function show(){
   $('#ed').onclick=()=>{view={m:'edit',r:JSON.parse(JSON.stringify(r))};render()};
   const gp=$('#gp');if(gp)gp.onclick=()=>{view={m:'prices'};render()};
   $('#dl').onclick=()=>{$('#dl').outerHTML=`<span class="row"><b style="color:#c0392b">Supprimer ?</b><button class="d" id="dy">Oui, supprimer</button><button id="dn">Non</button></span>`;
-    $('#dy').onclick=async()=>{try{await store.del(r.id)}catch(e){}view={m:'list'};render()};
+    $('#dy').onclick=async()=>{try{await store.del(r.id)}catch(e){$('#dy').closest('.row').innerHTML='<b style="color:#c0392b">⚠️ Échec de la suppression</b>';return}view={m:'list'};render()};
     $('#dn').onclick=()=>show()};
   $('#mi').onclick=()=>{view.serv=Math.max(1,s-1);show()};$('#pl').onclick=()=>{view.serv=s+1;show()};
   app.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{view.serv=Math.max(1,Math.round(base*b.dataset.m));show()});
@@ -404,7 +407,7 @@ function edit(){
   app.innerHTML=`<h2 style="font-family:Lato,system-ui,sans-serif">${recipes.some(x=>x.id===r.id)?'Modifier':'Nouvelle recette'}</h2>${view.note?`<p class="st" style="background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 12px">${esc(view.note)}</p>`:''}
   <div class="f"><label>Titre</label><input id="ti" value="${esc(r.title)}"></div>
   <div class="f"><label>Source (adresse web ou livre, optionnel)</label><input id="so" value="${esc(r.source||'')}"></div>
-  <div class="f"><label>Photo</label>${r.img?`<img class="hero" id="pv" src="${imgUrl(r.img)}" style="max-height:200px">`:''}<input type="file" id="fi" accept="image/*"><span class="st" id="fs">${assets?'':'Photos indisponibles dans ce mode.'}</span></div>
+  <div class="f"><label>Photo</label><img class="hero" id="pv" ${imgUrl(r.img)?`src="${esc(imgUrl(r.img))}"`:'hidden'} alt="" style="max-height:200px"><input type="file" id="fi" accept="image/*"><span class="st" id="fs">${assets?'':'Photos indisponibles dans ce mode.'}</span></div>
   <div class="row"><div class="f" style="flex:1;min-width:150px"><label>Catégories (une ou plusieurs)</label><div id="cc"></div><div class="row" style="margin-top:6px"><input id="cn2" placeholder="Nouvelle catégorie" style="flex:1;min-width:120px"><button id="cadd">Ajouter</button></div></div>
   <div class="f" style="flex:2;min-width:180px"><label>Tags (séparés par des virgules — les tags existants sont proposés)</label><input id="tg" autocomplete="off" autocapitalize="none" value="${esc((r.tags||[]).join(', '))}"><div id="tsg" style="margin-top:6px"></div></div></div>
   <div class="f"><label>Saisonnalité</label><div id="sa">${SAIS.map(([k,l])=>`<span class="chip ${(r.saison||'intemporel')===k?'on':''}" data-s="${k}">${l}</span>`).join('')}</div></div>
@@ -428,7 +431,7 @@ function edit(){
   const mvH=n=>`<span class="mv"><button data-up="${n}" title="Monter" ${n===0?'disabled':''}>▲</button><button data-dn="${n}" title="Descendre" ${n===r.ings.length-1?'disabled':''}>▼</button></span>`;
   const mv=(n,d)=>{n=+n;const j=n+d;if(j<0||j>=r.ings.length)return;[r.ings[n],r.ings[j]]=[r.ings[j],r.ings[n]];drawI();
     const b=il.querySelector(`[data-${d<0?'up':'dn'}="${j}"]:not([disabled])`)||il.querySelector(`[data-${d<0?'dn':'up'}="${j}"]`);if(b)b.focus()};
-  const subRow=(i,n)=>`<div class="ing"><span style="text-align:center" title="Recette">🥣</span><select data-n="${n}" data-rr><option value="">— Choisir une recette —</option>${recipes.filter(x=>x.id!==r.id&&!contains(x.id,r.id)).sort((a,b)=>a.title.localeCompare(b.title)).map(x=>`<option value="${esc(x.id)}" ${x.id===i.rref?'selected':''}>${esc(x.title)} (${esc(ylab(x))})</option>`).join('')}</select><input data-n="${n}" data-k="q" inputmode="decimal" placeholder="Qté" value="${esc(i.q)}"><input data-n="${n}" data-k="u" placeholder="g, ml, portions…" value="${esc(i.u)}">${mvH(n)}<button data-x="${n}">✕</button></div>`;
+  const subRow=(i,n)=>`<div class="ing"><span style="text-align:center" title="Recette">🥣</span><select data-n="${n}" data-rr><option value="">— Choisir une recette —</option>${recipes.filter(x=>x.id!==r.id&&!contains(x.id,r.id)).sort(byTitle).map(x=>`<option value="${esc(x.id)}" ${x.id===i.rref?'selected':''}>${esc(x.title)} (${esc(ylab(x))})</option>`).join('')}</select><input data-n="${n}" data-k="q" inputmode="decimal" placeholder="Qté" value="${esc(i.q)}"><input data-n="${n}" data-k="u" placeholder="g, ml, portions…" value="${esc(i.u)}">${mvH(n)}<button data-x="${n}">✕</button></div>`;
   const drawI=()=>{il.innerHTML=r.ings.map((i,n)=>i.rref!==undefined?subRow(i,n):`<div class="ing${i.t?' t':''}"><input type="checkbox" class="tc" data-t="${n}" ${i.t?'checked':''} title="Titre de section (ex. Pâte, Crème…)"><input data-n="${n}" data-k="name" placeholder="${i.t?'Titre (ex. Pâte, Garniture…)':'Ingrédient (choisir ou saisir)'}" ${i.t?'':'list="dl-ing" autocomplete="off"'} value="${esc(i.t?i.name:ingName(i))}"><input data-n="${n}" data-k="q" inputmode="decimal" placeholder="Qté" value="${esc(i.q)}"><input data-n="${n}" data-k="u" placeholder="g, ml…" value="${esc(i.u)}">${mvH(n)}<button data-x="${n}">✕</button></div>`).join('');
     il.querySelectorAll('[data-t]').forEach(c=>c.onchange=()=>{r.ings[c.dataset.t].t=c.checked;drawI()});
     il.querySelectorAll('input[data-k]').forEach(e=>e.oninput=()=>{let v=e.value;if(e.dataset.k==='q')v=v.replace(',','.');r.ings[e.dataset.n][e.dataset.k]=e.dataset.k==='q'&&v!==''&&!isNaN(+v)?+v:v});
@@ -447,7 +450,7 @@ function edit(){
   $('#ai').onclick=()=>{r.ings.push({q:'',u:'',name:''});drawI()};
   $('#ar').onclick=()=>{r.ings.push({rref:'',q:'',u:'',name:''});drawI()};
   $('#fi').onchange=async e=>{const f=e.target.files[0];if(!f||!assets)return;$('#fs').textContent='Envoi…';
-    try{const blob=await shrink(f);const up=await assets.upload(blob);r.img=up.id;$('#fs').textContent='✓ Photo ajoutée'}catch(err){$('#fs').textContent='Échec de l\'envoi de la photo'}};
+    try{const blob=await shrink(f);const up=await assets.upload(blob);r.img=up.id;const pv=$('#pv');if(pv){pv.src=imgUrl(up.id);pv.hidden=false}$('#fs').textContent='✓ Photo ajoutée'}catch(err){$('#fs').textContent='Échec de l\'envoi de la photo'}};
   r.saison=r.saison||'intemporel';
   $('#sa').querySelectorAll('[data-s]').forEach(c=>c.onclick=()=>{r.saison=c.dataset.s;$('#sa').querySelectorAll('[data-s]').forEach(x=>x.classList.toggle('on',x===c))});
   const tg=$('#tg'),tsg=$('#tsg');
@@ -520,6 +523,7 @@ function parseIngLine(raw){
 }
 function parseRecipeText(L,fname){
   L=L.filter(l=>!/^(page\s*)?\d+\s*(\/|sur)\s*\d+$/i.test(l.t));
+  if(!L.length)return null;
   // Titre : la plus grande police parmi les premières lignes (sinon la première ligne)
   const first=L.slice(0,12),mx=Math.max(...first.map(l=>l.h)),ti=Math.max(0,first.findIndex(l=>l.h>=mx-.5));
   const title=L[ti].t,lines=L.filter((_,i)=>i!==ti).map(l=>l.t);
@@ -567,15 +571,16 @@ async function importPdf(file){
   const msg=$('#imps');msg.textContent='Lecture du PDF…';
   try{
     const lines=await pdfLines(file);
-    if(!lines.length){msg.textContent='⚠️ Aucun texte trouvé dans ce PDF (document scanné ?).';return}
-    view={m:'edit',r:parseRecipeText(lines,file.name),note:'📄 Importé depuis « '+file.name+' » : vérifiez et corrigez les champs avant d\'enregistrer.'};
+    const rec=lines.length?parseRecipeText(lines,file.name):null;
+    if(!rec){msg.textContent='⚠️ Aucun texte trouvé dans ce PDF (document scanné ?).';return}
+    view={m:'edit',r:rec,note:'📄 Importé depuis « '+file.name+' » : vérifiez et corrigez les champs avant d\'enregistrer.'};
     render();
   }catch(e){msg.textContent='⚠️ Lecture impossible. Bibliothèque PDF introuvable (connexion internet requise, ou placez pdf.min.js et pdf.worker.min.js dans le dossier lib/) ou fichier invalide.'}
 }
 
-function shrink(file){return new Promise((res,rej)=>{const im=new Image();im.onload=()=>{const m=1200,s=Math.min(1,m/Math.max(im.width,im.height));
+function shrink(file){return new Promise((res,rej)=>{const im=new Image(),url=URL.createObjectURL(file);im.onload=()=>{URL.revokeObjectURL(url);const m=1200,s=Math.min(1,m/Math.max(im.width,im.height));
   const c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);
-  c.toBlob(b=>b?res(b):rej(),'image/jpeg',.82)};im.onerror=rej;im.src=URL.createObjectURL(file)})}
+  c.toBlob(b=>b?res(b):rej(),'image/jpeg',.82)};im.onerror=e=>{URL.revokeObjectURL(url);rej(e)};im.src=url})}
 init();
 </script>
 </body>
