@@ -139,12 +139,13 @@ let catsMeta=[],recipes=[], view={m:'list'}, filt={q:'',cat:''}, store=null, ass
 // ---- Compte administrateur : sans connexion, le site est en lecture seule ----
 let admin=false, acctUser='', setupNeeded=false, csrf='';
 const API=(a,id,col)=>'api.php?action='+a+(id?'&id='+encodeURIComponent(id):'')+(col?'&col='+col:'');
-function setMe(m){admin=!!m.admin;acctUser=m.user||'';setupNeeded=!!m.setup;csrf=m.csrf||'';drawAcct()}
+// Tout changement de statut (session retrouvée au chargement, connexion, déconnexion, expiration) redessine la page
+function setMe(m){const was=admin;admin=!!m.admin;acctUser=m.user||'';setupNeeded=!!m.setup;csrf=m.csrf||'';drawAcct();if(was!==admin)afterAuth()}
 async function refreshMe(){try{const r=await fetch(API('me'),{cache:'no-store'});if(r.ok)setMe(await r.json())}catch(e){}}
 // Requête de modification : porte le jeton anti-CSRF ; si la session admin a expiré, repasse en lecture seule
 async function apiPost(url,body,headers){
   const r=await fetch(url,{method:'POST',headers:{...(headers||{}),'X-CSRF-Token':csrf},body});
-  if((r.status===401||r.status===403)&&admin){await refreshMe();if(!admin){afterAuth();alert('Votre session administrateur a expiré : reconnectez-vous.')}}
+  if((r.status===401||r.status===403)&&admin){await refreshMe();if(!admin){alert('Votre session administrateur a expiré : reconnectez-vous.')}}
   return r}
 function afterAuth(){if(view.m==='edit'&&!admin)view={m:'list'};render(true)}
 function drawAcct(){
@@ -166,7 +167,7 @@ function openAcct(){
   $('#acn').onclick=()=>dl.close();
   dl.onclick=e=>{if(e.target===dl)dl.close()};
   const apw=$('#apw');if(apw)apw.ontoggle=()=>{$('#aok').hidden=!apw.open;$('#aok').classList.toggle('p',apw.open);$('#alo').classList.toggle('p',!apw.open)};
-  if($('#alo'))$('#alo').onclick=async()=>{try{setMe(await send('logout',{}))}catch(e){say(e.message);return}dl.close();afterAuth()};
+  if($('#alo'))$('#alo').onclick=async()=>{try{setMe(await send('logout',{}))}catch(e){say(e.message);return}dl.close()};
   $('#afm').onsubmit=async e=>{e.preventDefault();say('');
     const v=id=>{const x=$('#'+id);return x?x.value:''};
     if(mode!=='login'&&v('ap')!==v('ap2')){say('Les deux mots de passe ne correspondent pas.');return}
@@ -176,7 +177,7 @@ function openAcct(){
       if(mode==='login')setMe(await send('login',{user:v('au'),pass:v('ap')}));
       else if(mode==='setup')setMe(await send('setup',{user:v('au'),pass:v('ap')}));
       else{setMe(await send('passwd',{user:v('au'),old:v('ao'),new:v('ap')}));dl.close();alert('✓ Compte mis à jour.');return}
-      dl.close();afterAuth();
+      dl.close();
     }catch(err){say(err.message);$('#aok').disabled=false}};
   dl.showModal();
   const f=dl.querySelector('input');if(f&&mode!=='acct')f.focus();
