@@ -95,6 +95,10 @@ dialog{border:0;border-radius:18px;padding:0;width:min(440px,calc(100% - 32px));
 dialog::backdrop{background:rgba(40,25,15,.35)}
 .dlg{padding:18px 20px}.dlg h3{margin:0 0 4px;font:700 19px Lato,system-ui,sans-serif}
 .dlg-im{aspect-ratio:2/1;border-radius:12px;background:var(--acs) center/cover;display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;color:var(--mu);font-size:14px}
+.hd-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.acb{padding:6px 12px;font-size:14px;border-radius:99px}.acb.on{background:var(--acs);border-color:var(--ac);color:var(--ach)}
+.dlg .f input{margin-top:2px}.dlg .err{color:#c0392b}
+.fro{display:flex;justify-content:space-between;gap:10px;align-items:baseline}.fro b{font-weight:700}
 .pal{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}.sw{width:26px;height:26px;padding:0;border-radius:50%;border:2px solid var(--card);box-shadow:0 0 0 1px var(--bd);font-size:13px;line-height:1;color:var(--mu)}.sw.on{box-shadow:0 0 0 2px var(--tx)}.sw.none{background:var(--card)}
 /* Glaces */
 .gl-form{display:grid;grid-template-columns:2fr 1fr;gap:4px 14px;align-items:end;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:6px 14px;margin:10px 0;box-shadow:var(--sh)}
@@ -124,13 +128,59 @@ dialog::backdrop{background:rgba(40,25,15,.35)}
 </head>
 <body>
 <main>
-<header><h1>🍲 Mes recettes</h1><span class="st" id="st"></span></header>
+<header><h1>🍲 Mes recettes</h1><div class="hd-r"><span class="st" id="st"></span><span id="acct"></span></div></header>
+<dialog id="adlg"></dialog>
 <div id="app"></div>
 </main>
 <script src="glaces.js"></script>
 <script>
 const $=s=>document.querySelector(s), app=$('#app');
 let catsMeta=[],recipes=[], view={m:'list'}, filt={q:'',cat:''}, store=null, assets=null;
+// ---- Compte administrateur : sans connexion, le site est en lecture seule ----
+let admin=false, acctUser='', setupNeeded=false, csrf='';
+const API=(a,id,col)=>'api.php?action='+a+(id?'&id='+encodeURIComponent(id):'')+(col?'&col='+col:'');
+function setMe(m){admin=!!m.admin;acctUser=m.user||'';setupNeeded=!!m.setup;csrf=m.csrf||'';drawAcct()}
+async function refreshMe(){try{const r=await fetch(API('me'),{cache:'no-store'});if(r.ok)setMe(await r.json())}catch(e){}}
+// Requête de modification : porte le jeton anti-CSRF ; si la session admin a expiré, repasse en lecture seule
+async function apiPost(url,body,headers){
+  const r=await fetch(url,{method:'POST',headers:{...(headers||{}),'X-CSRF-Token':csrf},body});
+  if((r.status===401||r.status===403)&&admin){await refreshMe();if(!admin){afterAuth();alert('Votre session administrateur a expiré : reconnectez-vous.')}}
+  return r}
+function afterAuth(){if(view.m==='edit'&&!admin)view={m:'list'};render(true)}
+function drawAcct(){
+  const el=$('#acct');if(!el)return;
+  if(!store||!store.sync){el.innerHTML='';return}
+  el.innerHTML=admin?`<button class="acb on" id="acb" title="Compte administrateur">👤 ${esc(acctUser)}</button>`:`<button class="acb" id="acb" title="Connexion administrateur">🔒 Admin</button>`;
+  $('#acb').onclick=openAcct}
+function openAcct(){
+  const dl=$('#adlg'),mode=admin?'acct':setupNeeded?'setup':'login';
+  const fld=(id,l,t,ac,v)=>`<div class="f"><label for="${id}">${l}</label><input id="${id}" type="${t}" autocomplete="${ac}" value="${esc(v||'')}"></div>`;
+  dl.innerHTML=`<form class="dlg" id="afm" method="dialog">${
+    mode==='login'?`<h3>🔒 Connexion administrateur</h3><p class="st" style="margin:0 0 6px">Connectez-vous pour modifier les recettes, les prix et les catégories.</p>${fld('au','Identifiant','text','username')}${fld('ap','Mot de passe','password','current-password')}`:
+    mode==='setup'?`<h3>Créer le compte administrateur</h3><p class="st" style="margin:0 0 6px">Aucun administrateur n'existe encore. Ce compte pourra modifier tout le site ; les autres visiteurs pourront seulement consulter.</p>${fld('au','Identifiant','text','username')}${fld('ap','Mot de passe (8 caractères minimum)','password','new-password')}${fld('ap2','Confirmer le mot de passe','password','new-password')}`:
+    `<h3>👤 ${esc(acctUser)}</h3><p class="st" style="margin:0 0 6px">Vous êtes connecté en administrateur.</p><details id="apw"><summary style="cursor:pointer;margin:8px 0">Modifier l'identifiant ou le mot de passe</summary>${fld('au','Identifiant','text','username',acctUser)}${fld('ao','Mot de passe actuel','password','current-password')}${fld('ap','Nouveau mot de passe (vide = inchangé)','password','new-password')}${fld('ap2','Confirmer le nouveau mot de passe','password','new-password')}</details>`}
+  <div class="row" style="margin-top:14px">${mode==='acct'?'<button type="button" class="p" id="alo">Se déconnecter</button><button type="submit" id="aok" hidden>Enregistrer</button>':`<button type="submit" class="p" id="aok">${mode==='setup'?'Créer le compte':'Se connecter'}</button>`}<button type="button" id="acn">${mode==='acct'?'Fermer':'Annuler'}</button></div><p class="st err" id="aer" style="margin:8px 0 0"></p></form>`;
+  const say=m=>{$('#aer').textContent=m};
+  const send=async(a,b)=>{const r=await apiPost(API(a),JSON.stringify(b),{'Content-Type':'application/json'});let d={};try{d=await r.json()}catch(e){}
+    if(!r.ok)throw new Error(d.error?d.error.charAt(0).toUpperCase()+d.error.slice(1)+'.':'Échec ('+r.status+').');return d};
+  $('#acn').onclick=()=>dl.close();
+  dl.onclick=e=>{if(e.target===dl)dl.close()};
+  const apw=$('#apw');if(apw)apw.ontoggle=()=>{$('#aok').hidden=!apw.open;$('#aok').classList.toggle('p',apw.open);$('#alo').classList.toggle('p',!apw.open)};
+  if($('#alo'))$('#alo').onclick=async()=>{try{setMe(await send('logout',{}))}catch(e){say(e.message);return}dl.close();afterAuth()};
+  $('#afm').onsubmit=async e=>{e.preventDefault();say('');
+    const v=id=>{const x=$('#'+id);return x?x.value:''};
+    if(mode!=='login'&&v('ap')!==v('ap2')){say('Les deux mots de passe ne correspondent pas.');return}
+    if(mode!=='acct'&&!v('au').trim()){say('Indiquez un identifiant.');return}
+    $('#aok').disabled=true;
+    try{
+      if(mode==='login')setMe(await send('login',{user:v('au'),pass:v('ap')}));
+      else if(mode==='setup')setMe(await send('setup',{user:v('au'),pass:v('ap')}));
+      else{setMe(await send('passwd',{user:v('au'),old:v('ao'),new:v('ap')}));dl.close();alert('✓ Compte mis à jour.');return}
+      dl.close();afterAuth();
+    }catch(err){say(err.message);$('#aok').disabled=false}};
+  dl.showModal();
+  const f=dl.querySelector('input');if(f&&mode!=='acct')f.focus();
+}
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const fmt=n=>{n=Math.round(n*100)/100;return String(n).replace('.',',')};
@@ -152,22 +202,24 @@ function localStore(){
 async function init(){
   render();
   try{
-    const api=(a,id,col)=>'api.php?action='+a+(id?'&id='+encodeURIComponent(id):'')+(col?'&col='+col:'');
+    const api=API;
     const first=await fetch(api('list'),{cache:'no-store'});
     if(!first.ok)throw 0;
     await first.json();
-    assets={upload:async blob=>{const r=await fetch(api('upload'),{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:blob});if(!r.ok)throw 0;return r.json()}};
+    await refreshMe();
+    assets={upload:async blob=>{const r=await apiPost(api('upload'),blob,{'Content-Type':'application/octet-stream'});if(!r.ok)throw 0;return r.json()}};
     store={sync:true,last:'',
       async pull(cb){try{const [a,b,c]=await Promise.all(['','prices','cats'].map(k=>fetch(api('list',0,k),{cache:'no-store'}).then(r=>r.text())));const t=a+'|'+b+'|'+c;if(t!==this.last){const d=JSON.parse(a),p=JSON.parse(b);this.last=t;{let m=[];try{m=JSON.parse(c)}catch(e){}catsMeta=Array.isArray(m)?m:[]}prices=p.filter(x=>!x.meta);const mt=p.find(x=>x.meta);ptypes=mt&&Array.isArray(mt.types)?mt.types:DEFTYPES.slice();pcolors=mt&&mt.colors&&typeof mt.colors==='object'?mt.colors:{};(cb||this.cb)(d)}}catch(e){}},
       watch(cb){this.cb=cb;this.pull();setInterval(()=>this.pull(),10000)},
-      async save(r){const x=await fetch(api('save',r.id),{method:'POST',body:JSON.stringify(r)});if(!x.ok)throw 0;await this.pull()},
-      async del(id){const x=await fetch(api('delete',id),{method:'POST'});if(!x.ok)throw 0;await this.pull()},
-      async savePrice(p){const x=await fetch(api('save',p.id,'prices'),{method:'POST',body:JSON.stringify(p)});if(!x.ok)throw 0},
-      async saveCat(c){const x=await fetch(api('save',c.id,'cats'),{method:'POST',body:JSON.stringify(c)});if(!x.ok)throw 0},
-      async delCat(id){const x=await fetch(api('delete',id,'cats'),{method:'POST'});if(!x.ok)throw 0},
-      async delPrice(id){const x=await fetch(api('delete',id,'prices'),{method:'POST'});if(!x.ok)throw 0}};
+      async save(r){const x=await apiPost(api('save',r.id),JSON.stringify(r));if(!x.ok)throw 0;await this.pull()},
+      async del(id){const x=await apiPost(api('delete',id));if(!x.ok)throw 0;await this.pull()},
+      async savePrice(p){const x=await apiPost(api('save',p.id,'prices'),JSON.stringify(p));if(!x.ok)throw 0},
+      async saveCat(c){const x=await apiPost(api('save',c.id,'cats'),JSON.stringify(c));if(!x.ok)throw 0},
+      async delCat(id){const x=await apiPost(api('delete',id,'cats'));if(!x.ok)throw 0},
+      async delPrice(id){const x=await apiPost(api('delete',id,'prices'));if(!x.ok)throw 0}};
   }catch(e){}
-  if(!store) store=localStore();
+  if(!store){store=localStore();admin=true}   // sans serveur : données propres à ce navigateur, toujours modifiables
+  drawAcct();
   $('h1').onclick=()=>{filt={q:'',cat:''};view={m:'list'};render()};
   $('#st').textContent=store.sync?'':'⚠️ serveur injoignable : données locales uniquement';
   store.watch(a=>{recipes=a;if(view.m==='list'&&$('#q'))refresh();else if(view.m!=='edit'&&view.m!=='prices'&&view.m!=='glaces')render(true)});
@@ -176,6 +228,7 @@ async function init(){
 // ---- Rendu ----
 function render(keep){
   const y=window.scrollY;stopCar();
+  if(view.m==='edit'&&!admin)view={m:'list'};
   document.querySelector('main').classList.toggle('mid',view.m!=='list');
   if(view.m==='list')list();else if(view.m==='show')show();else if(view.m==='prices')pricesView();else if(view.m==='glaces')glacesView();else edit();
   window.scrollTo(0,keep?y:0);
@@ -198,7 +251,7 @@ function carousel(){
   if(!recipes.length)return'';
   const d=daily(),sea=curSeason();
   const head=`<div class="sec-h"><h2>✨ Idées du jour</h2><span class="st">${saisLabel(sea)}</span></div>`;
-  if(!d.length)return `<section>${head}<p class="mu st">Aucune recette proposée pour cette saison. Cochez « Afficher dans le carrousel » dans l'édition d'une recette.</p></section>`;
+  if(!d.length)return `<section>${head}<p class="mu st">Aucune recette proposée pour cette saison.${admin?' Cochez « Afficher dans le carrousel » dans l\'édition d\'une recette.':''}</p></section>`;
   const slide=r=>{const u=imgUrl(r.img),t=num(r.prep)+num(r.cook);
     return `<div class="slide${u?'':' noimg'}" data-id="${esc(r.id)}" tabindex="0" role="button">${u?`<div class="bg" style="background-image:url('${esc(u)}')"></div>`:'<div class="emo">🍽️</div>'}<div class="ov"><b>${esc(r.title)}</b><span>${esc(saisLabel(r.saison||'intemporel'))}${t?` · ${t} min`:''}</span></div></div>`};
   const many=d.length>1;
@@ -234,8 +287,8 @@ const ALLC='__all',NOC='__none';
 function catTiles(){
   // Boîte « Glaces » : ouvre le calculateur de glaces et sorbets
   const glTile=`<div class="ct noimg" data-gla="1" tabindex="0" role="button"><div class="ct-emo">🍨</div><div class="ct-ov"><b>Glaces</b><span>Crèmes glacées & sorbets</span></div></div>`;
-  if(!recipes.length)return`<p class="mu" style="margin-top:28px">Aucune recette. Ajoutez la première !</p><section><div class="cgrid">${glTile}</div></section>`;
-  const can=!!(store&&store.saveCat&&assets),sorted=[...recipes].sort(byTitle);
+  if(!recipes.length)return`<p class="mu" style="margin-top:28px">Aucune recette${admin?'. Ajoutez la première !':' pour le moment.'}</p><section><div class="cgrid">${glTile}</div></section>`;
+  const can=!!(admin&&store&&store.saveCat&&assets),sorted=[...recipes].sort(byTitle);
   const tile=(key,label,n,img,emo,edit)=>`<div class="ct${img?'':' noimg'}" data-cat="${esc(key)}" tabindex="0" role="button">${img?`<div class="ct-im" style="background-image:url('${esc(img)}')"></div>`:`<div class="ct-emo">${emo}</div>`}<div class="ct-ov"><b>${esc(label)}</b><span>${n} recette${n>1?'s':''}</span></div>${edit?`<button class="ct-ed" data-ec="${esc(key)}" title="Modifier la catégorie" aria-label="Modifier « ${esc(label)} »">✏️</button>`:''}</div>`;
   const cs=cats().map(c=>{const inC=sorted.filter(r=>catsOf(r).includes(c)),m=catMeta(c);
     return tile(c,c,inC.length,imgUrl(m&&m.img)||imgUrl((inC.find(r=>imgUrl(r.img))||{}).img),'🍽️',can)});
@@ -246,15 +299,17 @@ const norm=s=>String(s??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(
 let homeHtml='';
 function list(){
   homeHtml='';
-  app.innerHTML=`<div class="bar"><input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" placeholder="🔍 Recette, ingrédient, tag…" value="${esc(filt.q)}"><div class="acts"><button class="p" id="new">+ Nouvelle recette</button><button id="px">🧺 Ingrédients & prix</button><button id="imp">📄 Importer</button></div><input type="file" id="impf" accept="application/pdf,.pdf" hidden><span class="st" id="imps"></span></div><div id="home"></div><dialog id="cdlg"></dialog>`;
+  app.innerHTML=`<div class="bar"><input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" placeholder="🔍 Recette, ingrédient, tag…" value="${esc(filt.q)}"><div class="acts">${admin?'<button class="p" id="new">+ Nouvelle recette</button>':''}<button id="px">🧺 Ingrédients & prix</button>${admin?'<button id="imp">📄 Importer</button>':''}</div><input type="file" id="impf" accept="application/pdf,.pdf" hidden><span class="st" id="imps"></span></div><div id="home"></div><dialog id="cdlg"></dialog>`;
   $('#q').oninput=e=>{filt.q=e.target.value;refresh()};
+  if(admin){
   $('#new').onclick=()=>{view={m:'edit',r:{id:uid(),title:'',cats:filt.cat&&filt.cat!==ALLC&&filt.cat!==NOC?[filt.cat]:[],tags:[],prep:'',cook:'',serv:4,ings:[{q:'',u:'',name:''}],steps:'',img:'',saison:'intemporel',carousel:true}};render()};
   $('#px').onclick=()=>{view={m:'prices'};render()};
   $('#imp').onclick=()=>{$('#impf').value='';$('#impf').click()};
   $('#impf').onchange=e=>{const f=e.target.files[0];if(f)importPdf(f)};
+  }else $('#px').onclick=()=>{view={m:'prices'};render()};
   const home=$('#home');
   const act=e=>{
-    const ec=e.target.closest('[data-ec]');if(ec){openCat(ec.dataset.ec);return true}
+    const ec=e.target.closest('[data-ec]');if(ec&&admin){openCat(ec.dataset.ec);return true}
     if(e.target.closest('[data-gla]')){view={m:'glaces'};render();return true}
     if(e.target.closest('#bc')){filt.cat='';refresh();window.scrollTo(0,0);return true}
     const c=e.target.closest('[data-cat]');if(c){filt.cat=c.dataset.cat;refresh();window.scrollTo(0,0);return true}
@@ -375,16 +430,16 @@ function costBlock(r,k,s){
   return`<div class="cost">${tot>0?`💶 Coût estimé : <b>${eur(tot)}</b> · ${eur(tot/s)} / personne`:'💶 Coût non calculable'}
   ${miss.length?`<p class="st" style="margin:6px 0 0">Sans prix : ${esc(miss.join(', '))}.</p>`:''}
   ${bad.length?`<p class="st" style="margin:6px 0 0">Quantité ou unité non convertible (pour une sous-recette, vérifiez son rendement) : ${esc(bad.join(', '))}.</p>`:''}
-  ${miss.length?'<button id="gp" style="margin-top:8px">Renseigner les prix</button>':''}</div>`;
+  ${miss.length&&admin?'<button id="gp" style="margin-top:8px">Renseigner les prix</button>':''}</div>`;
 }
 function pricesView(){
-  const can=store&&store.savePrice,home=view.t===undefined,tcur=view.t;
+  const can=store&&store.savePrice,ed=can&&admin,home=view.t===undefined,tcur=view.t;
   const boxIcon=t=>{const n=norm(t);return!t?'📥':/fruit|legume/.test(n)?'🥕':/lait|fromage|creme|oeuf/.test(n)?'🥛':/viande|boucher/.test(n)?'🥩':/poisson/.test(n)?'🐟':/boulang|pain|patiss/.test(n)?'🥖':/boisson|alcool|vin/.test(n)?'🥤':/condiment|epice|sauce/.test(n)?'🧂':/surgel/.test(n)?'❄️':/epicerie/.test(n)?'🛒':'📦'};
   const priceLbl=p=>okP(p)?eur(+p.price)+' / '+({kg:'kg',l:'L',piece:'pièce'}[p.per||'kg']):'— €';
   app.innerHTML=`<div class="row"><button id="bk">${home?'← Retour':'← Toutes les boîtes'}</button></div><h2 id="bh" style="font-family:Lato,system-ui,sans-serif;margin:12px 0 4px">${home?'🧺 Ingrédients & prix':esc(boxIcon(tcur)+' '+(tcur||'À trier'))}</h2><div id="bcw"></div>
-  ${can?`${home?`<p class="mu st">Vos ingrédients sont rangés par type dans des boîtes : ouvrez une boîte pour voir et modifier ses prix. Une <b>famille</b> (ex. « Beurre » à 5 €/kg) regroupe ses <b>variantes</b> (« Beurre doux », « Beurre fondu »…), qui utilisent toutes son prix. Ce qui n'est pas encore rangé arrive dans « À trier ». Pour le calcul, 1 L est compté comme 1 kg, 1 c. à soupe = 15 mL, 1 c. à café = 5 mL. Les modifications s'enregistrent automatiquement.</p>`:''}
+  ${can?`${home&&!ed?`<p class="mu st">Les ingrédients sont rangés par type dans des boîtes : ouvrez une boîte pour voir ses prix. Une <b>famille</b> (ex. « Beurre » à 5 €/kg) regroupe ses <b>variantes</b> (« Beurre doux », « Beurre fondu »…), qui utilisent toutes son prix.</p>`:''}${home&&ed?`<p class="mu st">Vos ingrédients sont rangés par type dans des boîtes : ouvrez une boîte pour voir et modifier ses prix. Une <b>famille</b> (ex. « Beurre » à 5 €/kg) regroupe ses <b>variantes</b> (« Beurre doux », « Beurre fondu »…), qui utilisent toutes son prix. Ce qui n'est pas encore rangé arrive dans « À trier ». Pour le calcul, 1 L est compté comme 1 kg, 1 c. à soupe = 15 mL, 1 c. à café = 5 mL. Les modifications s'enregistrent automatiquement.</p>`:''}
   <div id="miss"></div>
-  <div class="row" style="margin:10px 0"><input id="pf" type="search" placeholder="${home?'Rechercher un ingrédient, une variante…':'Filtrer cette boîte…'}" style="flex:1;min-width:150px"><button class="p" id="pa">+ Nouvelle famille</button>${home?'<button id="pt">⚙️ Types</button>':''}<span class="st" id="ps"></span></div>
+  <div class="row" style="margin:10px 0"><input id="pf" type="search" placeholder="${home?'Rechercher un ingrédient, une variante…':'Filtrer cette boîte…'}" style="flex:1;min-width:150px">${ed?`<button class="p" id="pa">+ Nouvelle famille</button>${home?'<button id="pt">⚙️ Types</button>':''}`:''}<span class="st" id="ps"></span></div>
   <div id="tp" hidden></div>
   <div id="pl"></div>`:'<p class="mu">Les prix nécessitent le serveur (api.php).</p>'}`;
   $('#bk').onclick=()=>{view=home?{m:'list'}:{m:'prices'};render()};
@@ -393,7 +448,8 @@ function pricesView(){
   const say=m=>{ps.textContent=m};
   const PER=[['kg','€ / kg'],['l','€ / L'],['piece','€ / pièce']];
   const typeOpts=sel=>{const all=[...ptypes];if(sel&&!all.includes(sel))all.push(sel);return'<option value="">Type…</option>'+all.map(t=>`<option value="${esc(t)}" ${t===sel?'selected':''}>${esc(t)}</option>`).join('')};
-  const famHtml=p=>`<div class="fam${okP(p)?'':' np'}" data-id="${esc(p.id)}">
+  const famRo=p=>`<div class="fam" data-id="${esc(p.id)}"><div class="fro"><b>${esc(p.name)}</b><span class="mu">${priceLbl(p)}</span></div>${(p.vars||[]).length?`<div class="vrow" style="margin-top:4px">${p.vars.map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div>`:''}</div>`;
+  const famHtml=p=>!ed?famRo(p):`<div class="fam${okP(p)?'':' np'}" data-id="${esc(p.id)}">
     <div class="prow2"><input class="pn" placeholder="Famille (ex. Beurre)" value="${esc(p.name)}"><input class="pp" inputmode="decimal" placeholder="Prix €" value="${okP(p)?esc(String(p.price).replace('.',',')):''}"><select class="pu">${PER.map(([v,l])=>`<option value="${v}" ${(p.per||'kg')===v?'selected':''}>${l}</option>`).join('')}</select><select class="pty">${typeOpts(p.type||'')}</select><button class="d" data-x title="Supprimer la famille">✕</button></div>
     <div class="vrow">${(p.vars||[]).map((x,k)=>`<span class="chip">${esc(x)} <b data-xv="${k}" style="cursor:pointer" title="Retirer">✕</b></span>`).join('')}<input class="pv" placeholder="+ variante (ex. Beurre doux, Beurre fondu)" autocomplete="off"><button class="ar" data-mg title="Ranger dans une autre famille">↪</button></div></div>`;
   const saveFam=async p=>{try{await store.savePrice(p);say('✓ enregistré')}catch(e){say('⚠️ échec de l\'enregistrement')}};
@@ -408,7 +464,7 @@ function pricesView(){
   const missNames=()=>{const used=new Map();recipes.forEach(r=>(r.ings||[]).filter(i=>!i.t&&i.rref===undefined).forEach(i=>{const nm=ingName(i),n=nn(nm);if(n.trim()&&!used.has(n))used.set(n,String(nm).trim())}));
     return[...used].filter(([n])=>!hasEntry(n)).map(x=>x[1]).sort((a,b)=>a.localeCompare(b))};
   const drawBoxes=()=>{
-    const nm=missNames().length,un=prices.filter(p=>!p.type);
+    const nm=ed?missNames().length:0,un=prices.filter(p=>!p.type);
     const card=(t,a,extra)=>`<div class="tbox${t===''?' new':''}" data-b="${esc(t)}" style="${tsty(t)}"><h3>${boxIcon(t)} ${t?esc(t):'À trier'} <span class="st">(${a.length}${extra?` + ${extra} à classer`:''})</span></h3><ul>${[...a].sort(byName).slice(0,4).map(p=>`<li><span>${esc(p.name)}</span><span class="mu">${priceLbl(p)}</span></li>`).join('')}${a.length>4?`<li class="mu st">+ ${a.length-4} autres…</li>`:''}${!a.length&&!extra?'<li class="mu st">Vide</li>':''}</ul></div>`;
     pl.innerHTML=`<div class="tgrid">${(un.length||nm?[card('',un,nm)]:[]).concat(boxNames().map(t=>card(t,prices.filter(p=>p.type===t),0))).join('')}</div>`;
   };
@@ -445,7 +501,7 @@ function pricesView(){
     if(refocus){const n=pl.querySelector(`[data-id="${p.id}"] .pv`);if(n)n.focus()}
   }
   // « À classer » : ingrédients des recettes absents de la liste
-  const drawMiss=()=>{const m=tcur===''?missNames():[];
+  const drawMiss=()=>{const m=ed&&tcur===''?missNames():[];
     $('#miss').innerHTML=m.length?`<div class="cost"><b>À classer</b> <span class="st">(utilisés dans vos recettes mais absents de la liste — touchez pour les ranger dans une famille)</span><div style="margin-top:6px">${m.map(x=>`<span class="chip" data-m="${esc(x)}">${esc(x)}</span>`).join('')}</div><div id="mp"></div></div>`:'';
     $('#miss').querySelectorAll('[data-m]').forEach(c=>c.onclick=()=>showMp(c.dataset.m))};
   const showMp=name=>{const g=famGuess(name);
@@ -457,7 +513,7 @@ function pricesView(){
       await saveFam(p);drawList();drawMiss();
       const el=pl.querySelector(`[data-id="${p.id}"]`);if(el){el.scrollIntoView({block:'center'});if(!sid)el.querySelector('.pp').focus()}}};
 
-  pl.addEventListener('change',e=>{
+  pl.addEventListener('change',e=>{if(!ed)return;
     const el=e.target.closest('.fam');if(!el)return;
     if(e.target.classList.contains('pv')){addVars(el,e.target,false);return}
     persist(el).then(()=>{if(e.target.classList.contains('pty'))drawList()});
@@ -466,6 +522,7 @@ function pricesView(){
     if(e.key==='Enter'&&e.target.classList.contains('pv')){e.preventDefault();addVars(e.target.closest('.fam'),e.target,true)}});
   pl.addEventListener('click',async e=>{
     const bx=e.target.closest('[data-b]');if(bx){view={m:'prices',t:bx.dataset.b};render();return}
+    if(!ed)return;
     const el=e.target.closest('.fam');if(!el)return;
     const id=el.dataset.id,p=prices.find(x=>x.id===id),xv=e.target.closest('[data-xv]');
     if(xv&&p){p.vars.splice(+xv.dataset.xv,1);await saveFam(p);el.outerHTML=famHtml(p);drawMiss();return}
@@ -488,14 +545,14 @@ function pricesView(){
       for(const r of recipes){let ch=false;(r.ings||[]).forEach(i=>{if(i.ref===id){i.ref=t.id;ch=true}});if(ch)try{await store.save(r)}catch(err){}}
       drawList();drawMiss();say('✓ rangé dans « '+t.name+' »')}
   });
-  $('#pa').onclick=()=>{
+  if(ed)$('#pa').onclick=()=>{
     if(home){view={m:'prices',t:'',draft:true};render();return}
     const pe=$('#pe');if(pe)pe.remove();
     pl.insertAdjacentHTML('afterbegin',famHtml({id:uid(),name:'',price:'',per:'kg',type:tcur,vars:[]}));pl.firstElementChild.querySelector('.pn').focus()};
   $('#pf').oninput=drawList;
 
   // Gestion des types (accueil)
-  if(home){
+  if(home&&ed){
   const drawTypes=()=>{tp.innerHTML=`<div class="cost"><b>Types d'ingrédients</b> <span class="st">(modifiez un nom pour le renommer ; ✕ retire le type des familles concernées)</span>${ptypes.map((t,k)=>`<div style="margin-top:12px"><div class="row"><input class="tn" data-k="${k}" value="${esc(t)}" style="flex:1"><button class="d" data-xt="${k}">✕</button></div>${pal(tcol(t),'data-tk="'+k+'"')}</div>`).join('')}<div class="row" style="margin-top:8px"><input id="tnew" placeholder="Nouveau type (ex. Surgelés)" style="flex:1"><button id="tadd">Ajouter</button></div></div>`};
   const retype=async(from,to)=>{for(const p of prices.filter(x=>(x.type||'')===from)){p.type=to;await saveFam(p)}};
   $('#pt').onclick=()=>{tp.hidden=!tp.hidden;if(!tp.hidden)drawTypes()};
@@ -516,15 +573,15 @@ function pricesView(){
     const paint=()=>{const c=tcol(tcur);$('#bh').style.borderLeft=c?'8px solid '+c:'';$('#bh').style.paddingLeft=c?'10px':''};
     const drawBc=()=>{$('#bcw').innerHTML=`<div class="row" style="margin:6px 0"><span class="st">Couleur de la boîte</span></div>${pal(tcol(tcur),'')}`;paint()};
     $('#bcw').onclick=async e=>{const sw=e.target.closest('[data-col]');if(!sw)return;if(sw.dataset.col)pcolors[tcur]=sw.dataset.col;else delete pcolors[tcur];drawBc();await saveTypes()};
-    drawBc();
+    if(ed)drawBc();else paint();
   }
   drawList();drawMiss();
-  if(view.draft){delete view.draft;$('#pa').click()}
+  if(view.draft&&ed){delete view.draft;$('#pa').click()}
 }
 function show(){
   const r=recipes.find(x=>x.id===view.id); if(!r){view={m:'list'};return list()}
   const base=+r.serv||1, s=view.serv||base, k=s/base;
-  app.innerHTML=`<div class="row"><button id="bk">← Retour</button><span style="flex:1"></span><button id="ed">Modifier</button><button class="d" id="dl">Supprimer</button></div>
+  app.innerHTML=`<div class="row"><button id="bk">← Retour</button><span style="flex:1"></span>${admin?'<button id="ed">Modifier</button><button class="d" id="dl">Supprimer</button>':''}</div>
   <h2 style="font-family:Lato,system-ui,sans-serif;margin:12px 0 4px">${esc(r.title)}</h2>
   <div>${catsOf(r).map(c=>`<span class="chip">${esc(c)}</span>`).join('')}${r.saison&&r.saison!=='intemporel'?`<span class="chip">${saisLabel(r.saison)}</span>`:''}${(r.tags||[]).map(t=>`<span class="chip">#${esc(t)}</span>`).join('')}</div>
   ${imgUrl(r.img)?`<img class="hero" src="${esc(imgUrl(r.img))}" alt="">`:''}
@@ -538,11 +595,13 @@ function show(){
   <h3>Préparation</h3><div class="steps">${esc(r.steps||'')}</div>`;
   $('#bk').onclick=()=>{view=view.from?{m:'show',id:view.from,serv:null}:{m:'list'};render()};
   app.querySelectorAll('[data-r]').forEach(a=>a.onclick=e=>{e.preventDefault();view={m:'show',id:a.dataset.r,serv:null,from:r.id};render()});
-  $('#ed').onclick=()=>{view={m:'edit',r:JSON.parse(JSON.stringify(r))};render()};
   const gp=$('#gp');if(gp)gp.onclick=()=>{view={m:'prices'};render()};
+  if(admin){
+  $('#ed').onclick=()=>{view={m:'edit',r:JSON.parse(JSON.stringify(r))};render()};
   $('#dl').onclick=()=>{$('#dl').outerHTML=`<span class="row"><b style="color:#c0392b">Supprimer ?</b><button class="d" id="dy">Oui, supprimer</button><button id="dn">Non</button></span>`;
     $('#dy').onclick=async()=>{try{await store.del(r.id)}catch(e){$('#dy').closest('.row').innerHTML='<b style="color:#c0392b">⚠️ Échec de la suppression</b>';return}view={m:'list'};render()};
     $('#dn').onclick=()=>show()};
+  }
   $('#mi').onclick=()=>{view.serv=Math.max(1,s-1);show()};$('#pl').onclick=()=>{view.serv=s+1;show()};
   app.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{view.serv=Math.max(1,Math.round(base*b.dataset.m));show()});
   const rs=$('#rs');if(rs)rs.onclick=()=>{view.serv=null;show()};

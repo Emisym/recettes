@@ -350,12 +350,12 @@ async function glLoad(){
   glCustom=glLocal();glLoaded=true;
 }
 async function glSave(rec){
-  if(store&&store.sync){const r=await fetch(glApi('save',rec.id),{method:'POST',body:JSON.stringify(rec)});if(!r.ok)throw 0}
+  if(store&&store.sync){const r=await apiPost(glApi('save',rec.id),JSON.stringify(rec));if(!r.ok)throw 0}
   else glSetLocal([...glLocal().filter(x=>x.id!==rec.id),rec]);
   glCustom=[...glCustom.filter(x=>x.id!==rec.id),rec];
 }
 async function glDel(id){
-  if(store&&store.sync){const r=await fetch(glApi('delete',id),{method:'POST'});if(!r.ok)throw 0}
+  if(store&&store.sync){const r=await apiPost(glApi('delete',id));if(!r.ok)throw 0}
   else glSetLocal(glLocal().filter(x=>x.id!==id));
   glCustom=glCustom.filter(x=>x.id!==id);
 }
@@ -378,10 +378,11 @@ const glTitle=(type,name,cat)=>(type==='ci'?(cat==='standard'?'Glace':'Crème gl
 
 function glacesView(){
   const g=glState||(glState={rid:'b:vanille:ci',P:1000,ov:{},edit:null});
+  if(g.edit&&!admin)g.edit=null;   // éditeur réservé à l'administrateur
   if(g.edit)return glEditView();
-  app.innerHTML=`<div class="row"><button id="bk">← Accueil</button><span style="flex:1"></span><button class="p" id="gnew">+ Nouvelle recette de glace</button><button id="gpr">🖨️ Imprimer</button></div>
+  app.innerHTML=`<div class="row"><button id="bk">← Accueil</button><span style="flex:1"></span>${admin?'<button class="p" id="gnew">+ Nouvelle recette de glace</button>':''}<button id="gpr">🖨️ Imprimer</button></div>
   <h2 style="font-family:Lato,system-ui,sans-serif;margin:12px 0 4px">🍨 Glaces</h2>
-  <p class="mu st">Choisissez une recette et le poids de mix voulu : la recette est équilibrée selon <i>La technologie des glaces</i> (B. Davenat) — table analytique et formules d'Arbuckle. Avec « Nouvelle recette », composez la vôtre et vérifiez qu'elle est cohérente.</p>
+  <p class="mu st">Choisissez une recette et le poids de mix voulu : la recette est équilibrée selon <i>La technologie des glaces</i> (B. Davenat) — table analytique et formules d'Arbuckle.${admin?' Avec « Nouvelle recette », composez la vôtre et vérifiez qu\'elle est cohérente.':''}</p>
   <div class="gl-form">
     <div class="f"><label for="grc">Recette</label><select id="grc"></select></div>
     <div class="f"><label for="gp">Poids total du mix (g)</label><input id="gp" type="number" inputmode="decimal" min="100" step="50" value="${esc(g.P)}"></div>
@@ -390,7 +391,7 @@ function glacesView(){
   <div id="gres"></div>`;
   $('#bk').onclick=()=>{view={m:'list'};render()};
   $('#gpr').onclick=()=>window.print();
-  $('#gnew').onclick=()=>glOpenEditor({id:uid(),n:'',e:'🍨',type:'ci',lines:[{i:'lait',w:''},{i:'creme',w:''},{i:'poudre',w:''},{i:'sacch',w:''},{i:'glucose',w:''},{i:'stab',w:''}]},true);
+  if($('#gnew'))$('#gnew').onclick=()=>glOpenEditor({id:uid(),n:'',e:'🍨',type:'ci',lines:[{i:'lait',w:''},{i:'creme',w:''},{i:'poudre',w:''},{i:'sacch',w:''},{i:'glucose',w:''},{i:'stab',w:''}]},true);
   $('#grc').onchange=e=>{g.rid=e.target.value;g.ov={};glForm();glRes()};
   $('#gp').oninput=e=>{g.P=e.target.value;glRes()};
   $('#gadv').ontoggle=e=>{g.open=e.target.open};
@@ -425,12 +426,12 @@ function glRes(){
   let res,p,title,emo,head='';
   if(s.kind==='c'){
     res=glCalcCustom(P,s.rec);p=res.p;title=glTitle(s.type,s.rec.n||'sans nom')+' — '+glG(P)+' g de mix';emo=s.rec.e||'🍨';
-    head=`<div class="row gl-acts"><span class="chip">⭐ Ma recette · ${GL_TYPE[s.type]}</span><span style="flex:1"></span><button id="ged">✏️ Modifier</button><button id="gdup">📋 Dupliquer</button><button class="d" id="gdel">Supprimer</button></div>`;
+    head=`<div class="row gl-acts"><span class="chip">⭐ Ma recette · ${GL_TYPE[s.type]}</span><span style="flex:1"></span>${admin?'<button id="ged">✏️ Modifier</button><button id="gdup">📋 Dupliquer</button><button class="d" id="gdel">Supprimer</button>':''}</div>`;
   }else{
     p=glPar();
     if(s.type==='ci'&&p.coSec>0&&!(p.coPate>p.coMg)){box.innerHTML='<p class="gl-err">Le % de pâte de cacao de la couverture doit être supérieur à son % de matière grasse.</p>';return}
     res=s.type==='ci'?glCalcCI(P,p):glCalcSO(P,p);title=glTitle(s.type,s.r.n,p.cat)+' — '+glG(P)+' g de mix';emo=s.r.e;
-    head=`<div class="row gl-acts"><span class="chip">${GL_TYPE[s.type]}</span><span style="flex:1"></span><button id="gcp">📋 Copier dans mes recettes pour la modifier</button></div>`;
+    head=`<div class="row gl-acts"><span class="chip">${GL_TYPE[s.type]}</span><span style="flex:1"></span>${admin?'<button id="gcp">📋 Copier dans mes recettes pour la modifier</button>':''}</div>`;
   }
   if(res.err){box.innerHTML=head+`<p class="gl-err">⚠️ ${esc(res.err)}</p>`;glResActs(s,res);return}
   box.innerHTML=head+glRender(s.type,p,res,title,emo,true);
@@ -475,7 +476,7 @@ function glRender(type,p,res,title,emo,full){
 }
 
 // ---- Éditeur de recette personnelle ----
-function glOpenEditor(rec,isNew){glState.edit=rec;glState.editNew=isNew;window.scrollTo(0,0);glEditView()}
+function glOpenEditor(rec,isNew){if(!admin)return;glState.edit=rec;glState.editNew=isNew;window.scrollTo(0,0);glEditView()}
 function glEditView(){
   const g=glState,r=g.edit;
   app.innerHTML=`<div class="row"><button id="gx">← Annuler</button></div>
