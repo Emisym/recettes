@@ -300,13 +300,13 @@ const norm=s=>String(s??'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase(
 let homeHtml='';
 function list(){
   homeHtml='';
-  app.innerHTML=`<div class="bar"><input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" placeholder="🔍 Recette, ingrédient, tag…" value="${esc(filt.q)}"><div class="acts">${admin?'<button class="p" id="new">+ Nouvelle recette</button>':''}<button id="px">🧺 Ingrédients & prix</button>${admin?'<button id="imp">📄 Importer</button>':''}</div><input type="file" id="impf" accept="application/pdf,.pdf" hidden><span class="st" id="imps"></span></div><div id="home"></div><dialog id="cdlg"></dialog>`;
+  app.innerHTML=`<div class="bar"><input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" placeholder="🔍 Recette, ingrédient, tag…" value="${esc(filt.q)}"><div class="acts">${admin?'<button class="p" id="new">+ Nouvelle recette</button>':''}<button id="px">🧺 Ingrédients & prix</button>${admin?'<button id="imp">📄 Importer</button>':''}</div><input type="file" id="impf" accept="application/pdf,.pdf,application/json,.json" hidden><span class="st" id="imps"></span></div><div id="home"></div><dialog id="cdlg"></dialog>`;
   $('#q').oninput=e=>{filt.q=e.target.value;refresh()};
   if(admin){
   $('#new').onclick=()=>{view={m:'edit',r:{id:uid(),title:'',cats:filt.cat&&filt.cat!==ALLC&&filt.cat!==NOC?[filt.cat]:[],tags:[],prep:'',cook:'',serv:4,ings:[{q:'',u:'',name:''}],steps:'',img:'',saison:'intemporel',carousel:true}};render()};
   $('#px').onclick=()=>{view={m:'prices'};render()};
   $('#imp').onclick=()=>{$('#impf').value='';$('#impf').click()};
-  $('#impf').onchange=e=>{const f=e.target.files[0];if(f)importPdf(f)};
+  $('#impf').onchange=e=>{const f=e.target.files[0];if(!f)return;if(/\.json$/i.test(f.name)||f.type==='application/json')importJson(f);else importPdf(f)};
   }else $('#px').onclick=()=>{view={m:'prices'};render()};
   const home=$('#home');
   const act=e=>{
@@ -771,6 +771,33 @@ function parseRecipeText(L,fname){
   if(!ings.length)ings.push({q:'',u:'',name:''});
   return{id:uid(),title,source:fname,cats:[],tags:[],prep:prep||'',cook:cook||'',serv:serv||4,ings,
     steps:extra.concat(steps).join('\n\n'),img:'',saison:'intemporel',carousel:true};
+}
+// Import en lot d'un fichier JSON de recettes (ex. import/idees-recettes.json) : n'ajoute que les recettes absentes (même titre = ignorée)
+async function importJson(file){
+  const msg=$('#imps');
+  let data;try{data=JSON.parse(await file.text())}catch(e){msg.textContent='⚠️ Fichier JSON illisible.';return}
+  if(!Array.isArray(data)){msg.textContent='⚠️ Le fichier doit contenir une liste de recettes.';return}
+  const strs=a=>Array.isArray(a)?a.filter(x=>typeof x==='string'&&x.trim()).map(x=>x.trim()):[];
+  const have=new Set(recipes.map(r=>norm(r.title).trim())),ids=new Set(recipes.map(r=>r.id)),todo=[];
+  for(const x of data){
+    if(!x||typeof x!=='object'||typeof x.title!=='string'||!x.title.trim())continue;
+    const k=norm(x.title).trim();if(have.has(k))continue;have.add(k);
+    let id=typeof x.id==='string'&&/^[\w-]{1,64}$/.test(x.id)&&!ids.has(x.id)?x.id:uid();ids.add(id);
+    todo.push({id,title:x.title.trim(),cats:strs(x.cats),tags:strs(x.tags),prep:num(x.prep),cook:num(x.cook),serv:num(x.serv)||4,
+      ings:(Array.isArray(x.ings)?x.ings:[]).filter(i=>i&&typeof i==='object').map(i=>{const o={q:typeof i.q==='number'?i.q:String(i.q??''),u:String(i.u??''),name:String(i.name??'')};if(i.t)o.t=true;return o}),
+      steps:typeof x.steps==='string'?x.steps:'',img:'',saison:SAIS.some(s=>s[0]===x.saison)?x.saison:'intemporel',carousel:x.carousel!==false,source:typeof x.source==='string'?x.source:''});
+  }
+  const skip=data.length-todo.length;
+  if(!todo.length){msg.textContent='Rien à importer : toutes ces recettes sont déjà présentes.';return}
+  if(!confirm(`Importer ${todo.length} nouvelle${todo.length>1?'s':''} recette${todo.length>1?'s':''} ?${skip?`\n(${skip} déjà présente${skip>1?'s':''} ou invalide${skip>1?'s':''} : ignorée${skip>1?'s':''})`:''}`))return;
+  let ok=0,ko=0;
+  for(const r of todo){
+    msg.textContent=`Import en cours… ${ok+ko+1} / ${todo.length}`;
+    try{if(store.sync){const x=await apiPost(API('save',r.id),JSON.stringify(r));if(!x.ok)throw 0}else store.save(r);ok++}
+    catch(e){ko++;if(!admin)break}
+  }
+  if(store.sync)await store.pull();
+  msg.textContent=`✓ ${ok} recette${ok>1?'s':''} importée${ok>1?'s':''}`+(ko?` · ⚠️ ${ko} échec${ko>1?'s':''}`:'');
 }
 async function importPdf(file){
   const msg=$('#imps');msg.textContent='Lecture du PDF…';
