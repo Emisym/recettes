@@ -1,0 +1,501 @@
+[
+ {
+  "name": "Oeuf",
+  "price": 0.35,
+  "per": "piece",
+  "type": "Autre",
+  "vars": [
+   "Jaune d'oeuf",
+   "Jaunes d'oeufs",
+   "Oeufs"
+  ],
+  "pw": 55,
+  "source": "Open Prices, médiane de 256 relevés en France (nov. 2025 → aujourd'hui), fourchette 0.27–0.48 €/pièce"
+ },
+ {
+  "name": "Poivre",
+  "price": 72.78,
+  "per": "kg",
+  "type": "Condiments et épices",
+  "source": "Open Prices, médiane de 98 relevés en France (nov. 2025 → aujourd'hui), fourchette 48.00–89.47 €/kg"
+ },
+ {
+  "name": "Bleu d'Auvergne",
+  "price": 15.92,
+  "per": "kg",
+  "type": "Laitages",
+  "source": "Open Prices, médiane de 96 relevés en France (nov. 2025 → aujourd'hui), fourchette 13.33–20.90 €/kg"
+ },
+ {
+  "name": "Oignons",
+  "price": 0.42,
+  "per": "piece",
+  "type": "Fruits et légumes",
+  "vars": [
+   "Oignon jaune",
+   "Oignon blanc",
+   "Gros oignons"
+  ],
+  "pw": 150,
+  "source": "INSEE, prix moyen au détail, oct. 2026 — Oignons (1 kg) ; converti avec 150 g par pièce"
+ },
+ {
+  "name": "Oignon rouge",
+  "price": 0.48,
+  "per": "piece",
+  "type": "Fruits et légumes",
+  "vars": [
+   "Oignons rouges"
+  ],
+  "pw": 150,
+  "source": "Open Prices, médiane de 32 relevés en France (nov. 2025 → aujourd'hui), fourchette 2.89–4.19 €/kg ; converti avec 150 g par pièce"
+ },
+ {
+  "name": "Échalotes",
+  "price": 0.19,
+  "per": "piece",
+  "type": "Fruits et légumes",
+  "vars": [
+   "Échalote"
+  ],
+  "pw": 30,
+  "source": "Open Prices, médiane de 20 relevés en France (nov. 2025 → aujourd'hui), fourchette 4.99–7.96 €/kg ; converti avec 30 g par pièce"
+ },
+ {
+  "name": "Tomates",
+  "price": 0.64,
+  "per": "piece",
+  "type": "Fruits et légumes",
+  "vars": [
+   "Tomate",
+   "Tomates bien mûres"
+  ],
+  "pw": 150,
+  "source": "INSEE, prix moyen au détail, oct. 2026 — Tomates (1 kg) ; converti avec 150 g par pièce"
+ },
+ {
+  "name": "Citron",
+  "price": 0.48,
+  "per": "piece",
+  "type": "Fruits et légumes",
+  "vars": [
+   "Citrons"
+  ],
+  "pw": 120,
+  "source": "INSEE, prix moyen au détail, oct. 2026 — Citrons (1 kg) ; converti avec 120 g par pièce"
+ },
+ {
+  "name": "Citron vert",
+  "price": 0.59,
+  "per": "piece",
+  "type": "Fruits et légumes",
+  "vars": [
+   "Citrons verts"
+  ],
+  "pw": 70,
+  "source": "Open Prices, médiane de 9 relevés en France (nov. 2025 → aujourd'hui), fourchette 0.59–1.29 €/pièce"
+ },
+ {
+  "name": "Oranges",
+  "price": 0.57,
+  "per": "piece",
+  "type": "Fruits et légumes",
+  "vars": [
+   "Orange"
+  ],
+  "pw": 200,
+  "source": "INSEE, prix moyen au détail, oct. 2026 — Oranges (1 kg) ; converti avec 200 g par pièce"
+ },
+ {
+  "name": "Pommes de terre",
+  "price": 1.97,
+  "per": "kg",
+  "type": "Fruits et légumes",
+  "vars": [
+   "Pomme de terre",
+   "Patates"
+  ],
+  "pw": 150,
+  "source": "INSEE, prix moyen au détail, oct. 2026 — Pommes de terre de conservation (1 kg)"
+ },
+ {
+  "name": "Poireaux",
+  "price": 0.8,
+  "per": "piece",
+  "type": "Fruits et légumes",
+  "vars": [
+   "Poireau"
+  ],
+  "pw": 250,
+  "source": "INSEE, prix moyen au détail, oct. 2026 — Poireaux (1 kg) ; converti avec 250 g par pièce"
+ },
+ {
+  "name": "Poivrons",
+  "price": 0.98,
+  "per": "piece",
+  "type": "Fruits et légumes",
+  "vars": [
+   "Poivron",
+   "Poivron rouge",
+   "Poivron vert",
+   "Poivron jaune",
+   "Poivrons rouges"
+  ],
+  "pw": 200,
+  "source": "INSEE, prix moyen au détail, oct. 2026 — Poivrons (1 kg) ; converti avec 200 g par pièce"
+ },
+ {
+  "name": "Concombre",
+  "price": 1.84,
+  "per": "piece",
+  "type": "Fruits et légumes",
+  "pw": 400,
+  "source": "Open Prices, médiane de 30 relevés en France (nov. 2025 → aujourd'hui), fourchette 1.49–1.98 €/pièce"
+ },
+ {
+  "name": "Patate douce",
+  "price": 0.9,
+  "per": "piece",
+  "type": "Fruits et légumes",
+  "pw": 300,
+  "source": "Open Prices, médiane de 29 relevés en France (nov. 2025 → aujourd'hui), fourchette 2.49–4.40 €/kg ; converti avec 300 g par pièce"
+ },
+ {
+  "name": "Gingembre",
+  "price": 6.99,
+  "per": "kg",
+  "type": "Fruits et légumes",
+  "vars": [
+   "Gingembre frais"
+  ],
+  "source": "Open Prices, médiane de 29 relevés en France (nov. 2025 → aujourd'hui), fourchette 4.99–8.29 €/kg"
+ },
+ {
+  "name": "Épinards",
+  "price": 6.6,
+  "per": "kg",
+  "type": "Fruits et légumes",
+  "source": "Open Prices, médiane de 9 relevés en France (nov. 2025 → aujourd'hui), fourchette 5.55–6.60 €/kg"
+ },
+ {
+  "name": "Baguette",
+  "price": 1.03,
+  "per": "piece",
+  "type": "Boulangerie et Pâtisserie",
+  "vars": [
+   "Baguette de pain"
+  ],
+  "pw": 250,
+  "source": "INSEE, prix moyen au détail, oct. 2026 — Pain baguette (1 kg) ; converti avec 250 g par pièce"
+ },
+ {
+  "name": "Pain de mie",
+  "price": 0.1,
+  "per": "piece",
+  "type": "Boulangerie et Pâtisserie",
+  "pw": 25,
+  "source": "Open Prices, médiane de 289 relevés en France (nov. 2025 → aujourd'hui), fourchette 2.98–5.69 €/kg ; converti avec 25 g par pièce"
+ },
+ {
+  "name": "Huile d'olive",
+  "price": 13.79,
+  "per": "l",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 284 relevés en France (nov. 2025 → aujourd'hui), fourchette 10.65–17.20 €/L"
+ },
+ {
+  "name": "Huile de tournesol",
+  "price": 2.12,
+  "per": "l",
+  "type": "Épicerie",
+  "vars": [
+   "Huile",
+   "Huile neutre",
+   "Huile de friture"
+  ],
+  "source": "Open Prices, médiane de 80 relevés en France (nov. 2025 → aujourd'hui), fourchette 1.62–4.26 €/L"
+ },
+ {
+  "name": "Huile de sésame",
+  "price": 18.84,
+  "per": "l",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 46 relevés en France (nov. 2025 → aujourd'hui), fourchette 14.64–25.00 €/L"
+ },
+ {
+  "name": "Sauce soja",
+  "price": 18.53,
+  "per": "l",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 273 relevés en France (nov. 2025 → aujourd'hui), fourchette 13.64–23.96 €/L"
+ },
+ {
+  "name": "Vinaigre de riz",
+  "price": 21.87,
+  "per": "l",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 31 relevés en France (nov. 2025 → aujourd'hui), fourchette 14.31–26.60 €/L"
+ },
+ {
+  "name": "Lait de coco",
+  "price": 4.93,
+  "per": "l",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 19 relevés en France (nov. 2025 → aujourd'hui), fourchette 3.35–6.25 €/L"
+ },
+ {
+  "name": "Vin blanc",
+  "price": 9.1,
+  "per": "l",
+  "type": "Épicerie",
+  "vars": [
+   "Vin blanc sec"
+  ],
+  "source": "Open Prices, médiane de 29 relevés en France (nov. 2025 → aujourd'hui), fourchette 5.53–11.21 €/L"
+ },
+ {
+  "name": "Vin rouge",
+  "price": 8.76,
+  "per": "l",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 34 relevés en France (nov. 2025 → aujourd'hui), fourchette 5.00–12.67 €/L"
+ },
+ {
+  "name": "Miel",
+  "price": 16.61,
+  "per": "kg",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 277 relevés en France (nov. 2025 → aujourd'hui), fourchette 12.09–20.71 €/kg"
+ },
+ {
+  "name": "Moutarde",
+  "price": 9.1,
+  "per": "kg",
+  "type": "Condiments et épices",
+  "source": "Open Prices, médiane de 283 relevés en France (nov. 2025 → aujourd'hui), fourchette 6.56–12.96 €/kg"
+ },
+ {
+  "name": "Mayonnaise",
+  "price": 8.03,
+  "per": "kg",
+  "type": "Condiments et épices",
+  "source": "Open Prices, médiane de 280 relevés en France (nov. 2025 → aujourd'hui), fourchette 5.70–11.74 €/kg"
+ },
+ {
+  "name": "Ketchup",
+  "price": 4.7,
+  "per": "kg",
+  "type": "Condiments et épices",
+  "source": "Open Prices, médiane de 238 relevés en France (nov. 2025 → aujourd'hui), fourchette 3.11–6.47 €/kg"
+ },
+ {
+  "name": "Concentré de tomate",
+  "price": 8.0,
+  "per": "kg",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 92 relevés en France (nov. 2025 → aujourd'hui), fourchette 4.61–10.47 €/kg"
+ },
+ {
+  "name": "Tomates concassées",
+  "price": 4.2,
+  "per": "kg",
+  "type": "Épicerie",
+  "vars": [
+   "Tomates pelées"
+  ],
+  "source": "Open Prices, médiane de 200 relevés en France (nov. 2025 → aujourd'hui), fourchette 2.60–5.98 €/kg"
+ },
+ {
+  "name": "Coulis de tomate",
+  "price": 6.08,
+  "per": "kg",
+  "type": "Épicerie",
+  "vars": [
+   "Sauce tomate"
+  ],
+  "source": "Open Prices, médiane de 291 relevés en France (nov. 2025 → aujourd'hui), fourchette 4.40–8.90 €/kg"
+ },
+ {
+  "name": "Cumin",
+  "price": 73.59,
+  "per": "kg",
+  "type": "Condiments et épices",
+  "source": "Open Prices, médiane de 70 relevés en France (nov. 2025 → aujourd'hui), fourchette 59.47–91.75 €/kg"
+ },
+ {
+  "name": "Paprika",
+  "price": 55.4,
+  "per": "kg",
+  "type": "Condiments et épices",
+  "vars": [
+   "Paprika fumé",
+   "Paprika doux"
+  ],
+  "source": "Open Prices, médiane de 33 relevés en France (nov. 2025 → aujourd'hui), fourchette 28.40–81.04 €/kg"
+ },
+ {
+  "name": "Cannelle",
+  "price": 64.7,
+  "per": "kg",
+  "type": "Condiments et épices",
+  "source": "Open Prices, médiane de 73 relevés en France (nov. 2025 → aujourd'hui), fourchette 35.38–190.80 €/kg"
+ },
+ {
+  "name": "Curcuma",
+  "price": 47.09,
+  "per": "kg",
+  "type": "Condiments et épices",
+  "source": "Open Prices, médiane de 52 relevés en France (nov. 2025 → aujourd'hui), fourchette 29.86–56.86 €/kg"
+ },
+ {
+  "name": "Graines de sésame",
+  "price": 24.75,
+  "per": "kg",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 43 relevés en France (nov. 2025 → aujourd'hui), fourchette 14.36–54.40 €/kg"
+ },
+ {
+  "name": "Riz basmati",
+  "price": 5.21,
+  "per": "kg",
+  "type": "Épicerie",
+  "vars": [
+   "Riz"
+  ],
+  "source": "Open Prices, médiane de 140 relevés en France (nov. 2025 → aujourd'hui), fourchette 3.58–7.50 €/kg"
+ },
+ {
+  "name": "Pois chiches cuits",
+  "price": 4.6,
+  "per": "kg",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 200 relevés en France (nov. 2025 → aujourd'hui), fourchette 2.98–7.39 €/kg"
+ },
+ {
+  "name": "Cacao en poudre",
+  "price": 7.88,
+  "per": "kg",
+  "type": "Boulangerie et Pâtisserie",
+  "source": "Open Prices, médiane de 97 relevés en France (nov. 2025 → aujourd'hui), fourchette 7.24–13.51 €/kg"
+ },
+ {
+  "name": "Amandes",
+  "price": 23.84,
+  "per": "kg",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 169 relevés en France (nov. 2025 → aujourd'hui), fourchette 16.05–30.00 €/kg"
+ },
+ {
+  "name": "Pistaches",
+  "price": 20.93,
+  "per": "kg",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 111 relevés en France (nov. 2025 → aujourd'hui), fourchette 14.80–26.87 €/kg"
+ },
+ {
+  "name": "Raisins secs",
+  "price": 9.01,
+  "per": "kg",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 47 relevés en France (nov. 2025 → aujourd'hui), fourchette 8.30–13.04 €/kg"
+ },
+ {
+  "name": "Olives noires",
+  "price": 11.97,
+  "per": "kg",
+  "type": "Épicerie",
+  "source": "Open Prices, médiane de 81 relevés en France (nov. 2025 → aujourd'hui), fourchette 7.45–16.00 €/kg"
+ },
+ {
+  "name": "Petits pois",
+  "price": 3.57,
+  "per": "kg",
+  "type": "Surgelés",
+  "source": "Open Prices, médiane de 64 relevés en France (nov. 2025 → aujourd'hui), fourchette 2.73–5.00 €/kg"
+ },
+ {
+  "name": "Parmesan",
+  "price": 31.56,
+  "per": "kg",
+  "type": "Laitages",
+  "source": "Open Prices, médiane de 47 relevés en France (nov. 2025 → aujourd'hui), fourchette 25.83–34.00 €/kg"
+ },
+ {
+  "name": "Feta",
+  "price": 14.86,
+  "per": "kg",
+  "type": "Laitages",
+  "source": "Open Prices, médiane de 40 relevés en France (nov. 2025 → aujourd'hui), fourchette 12.27–21.13 €/kg"
+ },
+ {
+  "name": "Yaourt",
+  "price": 2.82,
+  "per": "kg",
+  "type": "Laitages",
+  "vars": [
+   "Yaourt nature"
+  ],
+  "source": "Open Prices, médiane de 284 relevés en France (nov. 2025 → aujourd'hui), fourchette 2.18–4.60 €/kg"
+ },
+ {
+  "name": "Jambon blanc",
+  "price": 19.7,
+  "per": "kg",
+  "type": "Viandes",
+  "source": "INSEE, prix moyen au détail, oct. 2026 — Jambon supérieur (1 kg)"
+ },
+ {
+  "name": "Lard fumé",
+  "price": 14.0,
+  "per": "kg",
+  "type": "Viandes",
+  "source": "Open Prices, médiane de 85 relevés en France (nov. 2025 → aujourd'hui), fourchette 10.00–19.60 €/kg"
+ },
+ {
+  "name": "Boeuf haché",
+  "price": 12.86,
+  "per": "kg",
+  "type": "Viandes",
+  "source": "Open Prices, médiane de 77 relevés en France (nov. 2025 → aujourd'hui), fourchette 11.25–16.95 €/kg"
+ },
+ {
+  "name": "Carottes",
+  "pw": 125,
+  "source": "Poids moyen d'une pièce (gousse pour l'ail), sans modification du prix"
+ },
+ {
+  "name": "Aubergines",
+  "pw": 300,
+  "source": "Poids moyen d'une pièce (gousse pour l'ail), sans modification du prix"
+ },
+ {
+  "name": "Courgette",
+  "pw": 250,
+  "source": "Poids moyen d'une pièce (gousse pour l'ail), sans modification du prix"
+ },
+ {
+  "name": "Ail",
+  "pw": 5,
+  "source": "Poids moyen d'une pièce (gousse pour l'ail), sans modification du prix"
+ },
+ {
+  "name": "Avocat",
+  "pw": 200,
+  "source": "Poids moyen d'une pièce (gousse pour l'ail), sans modification du prix"
+ },
+ {
+  "name": "Brocolis",
+  "pw": 400,
+  "source": "Poids moyen d'une pièce (gousse pour l'ail), sans modification du prix"
+ },
+ {
+  "name": "Choux-Fleurs",
+  "pw": 1000,
+  "source": "Poids moyen d'une pièce (gousse pour l'ail), sans modification du prix"
+ },
+ {
+  "name": "Choux vert",
+  "pw": 1200,
+  "source": "Poids moyen d'une pièce (gousse pour l'ail), sans modification du prix"
+ }
+]

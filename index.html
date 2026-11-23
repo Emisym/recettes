@@ -49,7 +49,7 @@ li{margin:6px 0}.mu{color:var(--mu)}
 .st{font-size:13px;color:var(--mu)}
 .mv{display:flex;flex-direction:column;gap:2px}.mv button{padding:0;font-size:10px;line-height:15px;border-radius:6px}.mv button:disabled{opacity:.3;cursor:default}
 .fam{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 12px;margin-bottom:10px}.fam.np{border-left:4px solid var(--ac)}
-.prow2{display:grid;grid-template-columns:1fr 90px 110px 1fr 36px;gap:6px;margin-bottom:8px}
+.prow2{display:grid;grid-template-columns:1fr 90px 110px 84px 1fr 36px;gap:6px;margin-bottom:8px}
 .vrow{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.vrow .chip{cursor:default;margin:0}.vrow .pv{flex:1;min-width:170px;width:auto;padding:5px 10px}
 .gh{font:600 17px Lato,system-ui,sans-serif;margin:18px 0 8px}
 .tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:6px}
@@ -57,7 +57,7 @@ li{margin:6px 0}.mu{color:var(--mu)}
 .tbox:hover{border-color:var(--ac)}.tbox.new{border:2px dashed var(--ac)}
 .tbox h3{font:600 17px Lato,system-ui,sans-serif;margin:0 0 8px}.tbox ul{list-style:none;margin:0;padding:0}
 .tbox li{display:flex;justify-content:space-between;gap:8px;margin:3px 0;font-size:14px}.tbox li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media (max-width:560px){.prow2{grid-template-columns:1fr 1fr 1fr 36px}.prow2 .pn{grid-column:1/-1}.ing{grid-template-columns:24px 1fr 56px 64px 26px 32px;gap:4px}}
+@media (max-width:560px){.prow2{grid-template-columns:1fr 1fr 1fr}.prow2 .pn{grid-column:1/-1}.prow2 .pty{grid-column:span 2}.ing{grid-template-columns:24px 1fr 56px 64px 26px 32px;gap:4px}}
 .cost{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:10px 14px;margin:10px 0}
 /* Accueil : barre de recherche, carrousel, catégories */
 .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 6px}
@@ -399,7 +399,7 @@ function unitInfo(u){
   const x=norm(u).replace(/[.\s]/g,''),T={mg:['m',1e-6],g:['m',1e-3],gr:['m',1e-3],gramme:['m',1e-3],grammes:['m',1e-3],kg:['m',1],kilo:['m',1],kilos:['m',1],
     ml:['v',1e-3],cl:['v',1e-2],dl:['v',.1],l:['v',1],litre:['v',1],litres:['v',1],
     cas:['v',.015],casoupe:['v',.015],cuillereasoupe:['v',.015],cuilleresasoupe:['v',.015],cac:['v',.005],cacafe:['v',.005],cuillereacafe:['v',.005],cuilleresacafe:['v',.005]};
-  return(['','piece','pieces','pc','u','portion','portions','part','parts','tranche','tranches','unite','unites'].includes(x))?['p',1]:(T[x]||null);
+  return(['','piece','pieces','pc','u','portion','portions','part','parts','tranche','tranches','unite','unites','gousse','gousses'].includes(x))?['p',1]:(T[x]||null);
 }
 // ---- Sous-recettes : une ligne {rref:id recette, q, u} = une quantité d'une autre recette ----
 function contains(rid,target,seen=new Set()){if(seen.has(rid))return false;seen.add(rid);const x=recipes.find(y=>y.id===rid);return !!x&&(x.ings||[]).some(i=>i.rref&&(i.rref===target||contains(i.rref,target,seen)))}
@@ -422,8 +422,9 @@ function lineCost(i,k,stack=[]){
   const e=i.ref&&prices.find(x=>x.id===i.ref),p=e?(okP(e)?e:null):findPrice(i.name);if(!p)return{s:'noprice'};
   const q=(i.q===''||i.q==null||isNaN(+i.q))?null:+i.q*k,u=unitInfo(i.u);
   if(q==null||!u)return{s:'noconv'};
-  if(p.per==='piece')return u[0]==='p'?{s:'ok',c:q*p.price}:{s:'noconv'};
-  return u[0]==='p'?{s:'noconv'}:{s:'ok',c:q*u[1]*p.price};
+  const pw=num(p.pw)/1000;   // poids moyen d'une pièce (kg) : convertit pièces <-> poids
+  if(p.per==='piece')return u[0]==='p'?{s:'ok',c:q*p.price}:pw?{s:'ok',c:q*u[1]/pw*p.price}:{s:'noconv'};
+  return u[0]==='p'?(pw?{s:'ok',c:q*pw*p.price}:{s:'noconv'}):{s:'ok',c:q*u[1]*p.price};
 }
 function costBlock(r,k,s){
   if(!store||!store.savePrice)return'';
@@ -440,7 +441,7 @@ function pricesView(){
   app.innerHTML=`<div class="row"><button id="bk">${home?'← Retour':'← Toutes les boîtes'}</button></div><h2 id="bh" style="font-family:Lato,system-ui,sans-serif;margin:12px 0 4px">${home?'🧺 Ingrédients & prix':esc(boxIcon(tcur)+' '+(tcur||'À trier'))}</h2><div id="bcw"></div>
   ${can?`${home&&!ed?`<p class="mu st">Les ingrédients sont rangés par type dans des boîtes : ouvrez une boîte pour voir ses prix. Une <b>famille</b> (ex. « Beurre » à 5 €/kg) regroupe ses <b>variantes</b> (« Beurre doux », « Beurre fondu »…), qui utilisent toutes son prix.</p>`:''}${home&&ed?`<p class="mu st">Vos ingrédients sont rangés par type dans des boîtes : ouvrez une boîte pour voir et modifier ses prix. Une <b>famille</b> (ex. « Beurre » à 5 €/kg) regroupe ses <b>variantes</b> (« Beurre doux », « Beurre fondu »…), qui utilisent toutes son prix. Ce qui n'est pas encore rangé arrive dans « À trier ». Pour le calcul, 1 L est compté comme 1 kg, 1 c. à soupe = 15 mL, 1 c. à café = 5 mL. Les modifications s'enregistrent automatiquement.</p>`:''}
   <div id="miss"></div>
-  <div class="row" style="margin:10px 0"><input id="pf" type="search" placeholder="${home?'Rechercher un ingrédient, une variante…':'Filtrer cette boîte…'}" style="flex:1;min-width:150px">${ed?`<button class="p" id="pa">+ Nouvelle famille</button>${home?'<button id="pt">⚙️ Types</button>':''}`:''}<span class="st" id="ps"></span></div>
+  <div class="row" style="margin:10px 0"><input id="pf" type="search" placeholder="${home?'Rechercher un ingrédient, une variante…':'Filtrer cette boîte…'}" style="flex:1;min-width:150px">${ed?`<button class="p" id="pa">+ Nouvelle famille</button>${home?'<button id="pt">⚙️ Types</button><button id="pim">📥 Importer des prix</button><input type="file" id="pimf" accept="application/json,.json" hidden>':''}`:''}<span class="st" id="ps"></span></div>
   <div id="tp" hidden></div>
   <div id="pl"></div>`:'<p class="mu">Les prix nécessitent le serveur (api.php).</p>'}`;
   $('#bk').onclick=()=>{view=home?{m:'list'}:{m:'prices'};render()};
@@ -449,9 +450,9 @@ function pricesView(){
   const say=m=>{ps.textContent=m};
   const PER=[['kg','€ / kg'],['l','€ / L'],['piece','€ / pièce']];
   const typeOpts=sel=>{const all=[...ptypes];if(sel&&!all.includes(sel))all.push(sel);return'<option value="">Type…</option>'+all.map(t=>`<option value="${esc(t)}" ${t===sel?'selected':''}>${esc(t)}</option>`).join('')};
-  const famRo=p=>`<div class="fam" data-id="${esc(p.id)}"><div class="fro"><b>${esc(p.name)}</b><span class="mu">${priceLbl(p)}</span></div>${(p.vars||[]).length?`<div class="vrow" style="margin-top:4px">${p.vars.map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div>`:''}</div>`;
+  const famRo=p=>`<div class="fam" data-id="${esc(p.id)}"><div class="fro"><b>${esc(p.name)}</b><span class="mu">${priceLbl(p)}${num(p.pw)?` · 1 pièce ≈ ${fmt(num(p.pw))} g`:''}</span></div>${(p.vars||[]).length?`<div class="vrow" style="margin-top:4px">${p.vars.map(x=>`<span class="chip">${esc(x)}</span>`).join('')}</div>`:''}</div>`;
   const famHtml=p=>!ed?famRo(p):`<div class="fam${okP(p)?'':' np'}" data-id="${esc(p.id)}">
-    <div class="prow2"><input class="pn" placeholder="Famille (ex. Beurre)" value="${esc(p.name)}"><input class="pp" inputmode="decimal" placeholder="Prix €" value="${okP(p)?esc(String(p.price).replace('.',',')):''}"><select class="pu">${PER.map(([v,l])=>`<option value="${v}" ${(p.per||'kg')===v?'selected':''}>${l}</option>`).join('')}</select><select class="pty">${typeOpts(p.type||'')}</select><button class="d" data-x title="Supprimer la famille">✕</button></div>
+    <div class="prow2"><input class="pn" placeholder="Famille (ex. Beurre)" value="${esc(p.name)}"><input class="pp" inputmode="decimal" placeholder="Prix €" value="${okP(p)?esc(String(p.price).replace('.',',')):''}"><select class="pu">${PER.map(([v,l])=>`<option value="${v}" ${(p.per||'kg')===v?'selected':''}>${l}</option>`).join('')}</select><input class="pw" inputmode="decimal" placeholder="g / pièce" title="Poids moyen d'une pièce en grammes : permet de compter cet ingrédient à la pièce ou au poids dans les recettes" value="${num(p.pw)?esc(String(p.pw).replace('.',',')):''}"><select class="pty">${typeOpts(p.type||'')}</select><button class="d" data-x title="Supprimer la famille">✕</button></div>
     <div class="vrow">${(p.vars||[]).map((x,k)=>`<span class="chip">${esc(x)} <b data-xv="${k}" style="cursor:pointer" title="Retirer">✕</b></span>`).join('')}<input class="pv" placeholder="+ variante (ex. Beurre doux, Beurre fondu)" autocomplete="off"><button class="ar" data-mg title="Ranger dans une autre famille">↪</button></div></div>`;
   const saveFam=async p=>{try{await store.savePrice(p);say('✓ enregistré')}catch(e){say('⚠️ échec de l\'enregistrement')}};
   const saveTypes=async()=>{try{await store.savePrice({id:'meta-types',meta:true,types:ptypes,colors:pcolors});say('✓ enregistré')}catch(e){say('⚠️ échec de l\'enregistrement')}};
@@ -481,7 +482,8 @@ function pricesView(){
     const id=el.dataset.id,name=el.querySelector('.pn').value.trim();if(!name)return;
     const c=clash(name,id);if(c){say('⚠️ « '+name+' » existe déjà (famille « '+c.name+' »)');return}
     const old=prices.find(x=>x.id===id)||{},v=parseFloat(el.querySelector('.pp').value.replace(',','.'));
-    const it={...old,id,name,price:isNaN(v)?'':v,per:el.querySelector('.pu').value,type:el.querySelector('.pty').value,vars:(old.vars||[]).filter(x=>nn(x)!==nn(name))};
+    const w=parseFloat(el.querySelector('.pw').value.replace(',','.'));
+    const it={...old,id,name,price:isNaN(v)?'':v,per:el.querySelector('.pu').value,pw:w>0?w:'',type:el.querySelector('.pty').value,vars:(old.vars||[]).filter(x=>nn(x)!==nn(name))};
     const i=prices.findIndex(x=>x.id===id);if(i<0)prices.push(it);else prices[i]=it;
     el.classList.toggle('np',!okP(it));
     await saveFam(it);drawMiss();
@@ -552,6 +554,38 @@ function pricesView(){
     pl.insertAdjacentHTML('afterbegin',famHtml({id:uid(),name:'',price:'',per:'kg',type:tcur,vars:[]}));pl.firstElementChild.querySelector('.pn').focus()};
   $('#pf').oninput=drawList;
 
+  // Import de prix (fichier JSON) : crée les familles absentes, remplit les prix vides, ajoute poids moyens et variantes.
+  // Un prix déjà renseigné n'est jamais modifié.
+  async function importPrices(file){
+    let data;try{data=JSON.parse(await file.text())}catch(e){say('⚠️ Fichier JSON illisible.');return}
+    if(!Array.isArray(data)){say('⚠️ Le fichier doit contenir une liste de familles.');return}
+    const cur=prices.map(p=>({...p})),plan=new Map(),st={created:0,filled:0,pw:0,vars:0};
+    const owner=(n,ex)=>cur.find(x=>x.id!==ex&&famNames(x).some(y=>nn(y)===nn(n)));
+    for(const x of data){
+      if(!x||typeof x.name!=='string'||!x.name.trim())continue;
+      const name=x.name.trim(),price=typeof x.price==='number'&&x.price>0?Math.round(x.price*100)/100:'',per=['kg','l','piece'].includes(x.per)?x.per:'kg',pw=num(x.pw)||'';
+      const vars=Array.isArray(x.vars)?x.vars.filter(v=>typeof v==='string'&&v.trim()).map(v=>v.trim()):[];
+      let f=owner(name,'');
+      if(!f){f={id:uid(),name,price,per,type:typeof x.type==='string'?x.type:'',vars:[]};if(pw)f.pw=pw;cur.push(f);plan.set(f.id,f);st.created++}
+      else{
+        if(!okP(f)&&price!==''){f.price=price;f.per=per;plan.set(f.id,f);st.filled++}
+        if(pw&&!num(f.pw)){f.pw=pw;plan.set(f.id,f);st.pw++}
+      }
+      const nv=vars.filter(v=>!owner(v,''));
+      if(nv.length){f.vars=[...(f.vars||[]),...nv];plan.set(f.id,f);st.vars+=nv.length}
+    }
+    if(!plan.size){say('Rien à importer : tout est déjà à jour.');return}
+    if(!confirm(`Importer ces prix ?\n• ${st.created} nouvelle(s) famille(s)\n• ${st.filled} prix ajouté(s) à des familles qui n'en avaient pas\n• ${st.pw} poids moyen(s) d'une pièce ajouté(s)\n• ${st.vars} variante(s) rattachée(s)\n\nLes prix déjà renseignés ne sont pas modifiés.`))return;
+    let ok=0,ko=0;
+    for(const f of plan.values()){say(`Import en cours… ${ok+ko+1} / ${plan.size}`);try{await store.savePrice(f);ok++}catch(e){ko++}}
+    prices=cur;await store.pull();   // le serveur fait foi : on recharge la liste enregistrée
+   drawList();drawMiss();
+    say(`✓ ${ok} famille(s) mise(s) à jour`+(ko?` · ⚠️ ${ko} échec(s)`:''));
+  }
+  if(home&&ed){
+    $('#pim').onclick=()=>{$('#pimf').value='';$('#pimf').click()};
+    $('#pimf').onchange=e=>{const f=e.target.files[0];if(f)importPrices(f)};
+  }
   // Gestion des types (accueil)
   if(home&&ed){
   const drawTypes=()=>{tp.innerHTML=`<div class="cost"><b>Types d'ingrédients</b> <span class="st">(modifiez un nom pour le renommer ; ✕ retire le type des familles concernées)</span>${ptypes.map((t,k)=>`<div style="margin-top:12px"><div class="row"><input class="tn" data-k="${k}" value="${esc(t)}" style="flex:1"><button class="d" data-xt="${k}">✕</button></div>${pal(tcol(t),'data-tk="'+k+'"')}</div>`).join('')}<div class="row" style="margin-top:8px"><input id="tnew" placeholder="Nouveau type (ex. Surgelés)" style="flex:1"><button id="tadd">Ajouter</button></div></div>`};
